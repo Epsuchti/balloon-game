@@ -32,10 +32,10 @@ const MAX_HULL := 100.0
 const TANK := 100.0
 const MAGAZINE := 40
 const BURN_HEAT := 0.4
-const BURN_FUEL := 7.0
+const BURN_FUEL := 8.0
 const COOLING := 0.07
 const MAX_ITEMS := 14
-const CAN_FUEL := 50.0
+const CAN_FUEL := 35.0
 const CRATE_AMMO := 20
 
 const STATION_SPOTS := [
@@ -68,7 +68,6 @@ var thrust := 0.0
 var hull := MAX_HULL
 var fuel := TANK
 var ammo := 30
-var self_heal := true
 var frozen := false
 var landing_speed := 40.0
 var lamp_angle := 0.0
@@ -85,6 +84,8 @@ var crew: Array[CrewMember] = []
 var items: Array[SupplyItem] = []
 var boarders: Array[Boarder] = []
 
+var _envelope_shape: CircleShape2D
+var _envelope_box: CollisionShape2D
 var _front: Node2D
 var _glow: PointLight2D
 var _lamp: PointLight2D
@@ -102,12 +103,11 @@ func _ready() -> void:
 	box.shape = rect
 	box.position = BASKET.get_center() * SCALE
 	add_child(box)
-	var env := CollisionShape2D.new()
-	var circle := CircleShape2D.new()
-	circle.radius = 36.0 * SCALE
-	env.shape = circle
-	env.position = ENVELOPE_CENTER * SCALE
-	add_child(env)
+	_envelope_box = CollisionShape2D.new()
+	_envelope_shape = CircleShape2D.new()
+	_envelope_box.shape = _envelope_shape
+	add_child(_envelope_box)
+	_fit_envelope_shape()
 	rig = Node2D.new()
 	rig.scale = Vector2(SCALE, SCALE)
 	add_child(rig)
@@ -140,6 +140,34 @@ func _ready() -> void:
 ## Middle of the balloon's bounding box, in world space.
 func center() -> Vector2:
 	return global_position + CENTER_OFFSET
+
+
+## How much the drawn envelope is scaled for the current envelope_size (it shrinks to 72%).
+func envelope_factor() -> float:
+	return lerpf(0.72, 1.0, clampf((envelope_size - 0.6) / 0.4, 0.0, 1.0))
+
+
+## Centre and radii of the envelope in rig units. The bottom (where the ropes hang) stays put.
+func envelope_center() -> Vector2:
+	return Vector2(0, ENVELOPE_CENTER.y + ENVELOPE_RADII.y * (1.0 - envelope_factor()))
+
+
+func envelope_radii() -> Vector2:
+	return ENVELOPE_RADII * envelope_factor()
+
+
+## True if a circle of this radius at a rig-unit position touches the basket or the envelope.
+func touches(local: Vector2, radius: float) -> bool:
+	if BASKET.grow(radius).has_point(local):
+		return true
+	return ((local - envelope_center()) / (envelope_radii() + Vector2(radius, radius))).length() <= 1.0
+
+
+func _fit_envelope_shape() -> void:
+	var r := 36.0 * envelope_factor() * SCALE
+	if absf(_envelope_shape.radius - r) > 0.25:
+		_envelope_shape.radius = r
+		_envelope_box.position = envelope_center() * SCALE
 
 
 ## A world position in rig units, to compare with BASKET, ENVELOPE_CENTER and the crew.
@@ -179,8 +207,7 @@ func _physics_process(dt: float) -> void:
 		it.tick(dt)
 	_simulate(dt)
 	_glow.energy = _night * 0.9 + (0.3 * _night if burning else 0.0)
-	_lamp.enabled = station_count > Roles.LAMP
-	_lamp.energy = _night * 1.6
+	_lamp.energy = 0.0 if stations[Roles.LAMP].broken else _night * 1.6
 	_lamp.rotation = lamp_angle
 	queue_redraw()
 
@@ -194,6 +221,7 @@ func _simulate(dt: float) -> void:
 		fuel = maxf(0.0, fuel - BURN_FUEL * dt)
 	heat = maxf(0.0, heat - heat * COOLING * dt)
 	envelope_size = move_toward(envelope_size, 0.6 if shrinking else 1.0, (0.5 if shrinking else 0.25) * dt)
+	_fit_envelope_shape()
 	thrust = move_toward(thrust, clampf(thrust_input, -2.0, 2.0), 2.0 * dt)
 	var accel := Vector2(thrust * THRUST, GRAVITY - heat * envelope_size * LIFT)
 	if run != null:
@@ -202,8 +230,6 @@ func _simulate(dt: float) -> void:
 	velocity -= velocity * DRAG * dt
 	_move(dt)
 	since_damage += dt
-	if self_heal and since_damage > 3.0:
-		hull = minf(MAX_HULL, hull + 1.5 * dt)
 
 
 func _move(dt: float) -> void:

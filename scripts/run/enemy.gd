@@ -4,7 +4,7 @@ extends Node2D
 ## basket, bombers fly close and explode (blowing a crater in the terrain too).
 
 const STATS := {
-	"bat": {"hp": 2, "speed": 50.0, "radius": 6.0, "damage": 6.0, "gold": 3,
+	"bat": {"hp": 2, "speed": 50.0, "radius": 6.0, "damage": 5.0, "gold": 3,
 		"drops": {"ammo": 0.35, "fuel": 0.2, "gold": 0.15}},
 	"harpy": {"hp": 3, "speed": 42.0, "radius": 7.0, "damage": 0.0, "gold": 5,
 		"drops": {"ammo": 0.3, "fuel": 0.25, "gold": 0.25}},
@@ -14,6 +14,7 @@ const STATS := {
 		"drops": {"ammo": 0.2, "fuel": 0.3, "gold": 0.5}},
 }
 const FUSE := 0.7
+const BAT_RAMS := 3     # a bat flies off after ramming this many times
 
 var kind := "bat"
 var run: Node
@@ -26,6 +27,7 @@ var _cooldown := 0.0
 var _fuse := -1.0
 var _flash := 0.0
 var _wobble := randf() * TAU
+var _rams := 0
 
 
 func _ready() -> void:
@@ -54,7 +56,9 @@ func _physics_process(dt: float) -> void:
 		queue_free()
 		return
 	var target := b.center()
-	if kind == "harpy" or kind == "goblin":
+	if _rams >= BAT_RAMS:
+		target = global_position + Vector2(-200, -120)  # had enough, flying off
+	elif kind == "harpy" or kind == "goblin":
 		target = b.world_of(Vector2(0, -16))
 	var to := target - global_position
 	var speed: float = STATS[kind]["speed"]
@@ -62,15 +66,15 @@ func _physics_process(dt: float) -> void:
 	vel = vel.lerp(desired, minf(1.0, dt * 2.0))
 	_step(dt)
 	var local := b.local_of(global_position)
-	var touching := Balloon.BASKET.grow(radius).has_point(local) \
-		or ((local - Balloon.ENVELOPE_CENTER) / (Balloon.ENVELOPE_RADII + Vector2(radius, radius))).length() <= 1.0
+	var touching := b.touches(local, radius)
 	match kind:
 		"bat":
-			if touching and _cooldown <= 0.0:
+			if touching and _cooldown <= 0.0 and _rams < BAT_RAMS:
 				b.take_damage(STATS[kind]["damage"])
 				b.knock_crew(Vector2(signf(vel.x) * 30.0, -30.0))
 				vel = -to.normalized() * 90.0
 				_cooldown = 1.5
+				_rams += 1
 				Sfx.play("hit")
 		"harpy", "goblin":
 			if Balloon.BASKET.grow(10.0).has_point(local):

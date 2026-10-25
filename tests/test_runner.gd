@@ -16,6 +16,7 @@ func _ready() -> void:
 	_test_scores()
 	await _test_run_smoke(1, 300)
 	await _test_run_smoke(8, 900)
+	await _test_breakdown()
 	await _test_screens()
 	await _test_autopilot(Difficulty.EASY, 777)
 	await _test_autopilot(Difficulty.NORMAL, 777)
@@ -47,9 +48,11 @@ func _test_level_code() -> void:
 
 
 func _test_roles() -> void:
-	check(Roles.station_count(1) == 3, "one player still has three stations")
-	check(Roles.station_count(4) == 4, "fourth player adds the turret")
-	check(Roles.station_count(12) == 8, "stations cap at eight")
+	check(Roles.station_count(1) == Roles.COUNT and Roles.station_count(4) == Roles.COUNT, "every station is always on board")
+	var Run: GDScript = load("res://scripts/run/run.gd")
+	check(Run.breakdown_interval(2, Difficulty.NORMAL) > Run.breakdown_interval(8, Difficulty.NORMAL), "big crews get more breakdowns")
+	check(Run.enemy_chance(2) < 0.3 and Run.enemy_chance(2) > 0.0, "two players see a few enemies")
+	check(Run.enemy_chance(7) >= 1.0, "seven players get every enemy")
 
 
 func _test_generator() -> void:
@@ -129,7 +132,7 @@ func _test_run_smoke(bots: int, frames: int) -> void:
 	add_child(run)
 	await get_tree().physics_frame
 	check(run.balloon.crew.size() == bots, "%d crew in the basket" % bots)
-	check(run.balloon.station_count == Roles.station_count(bots), "stations match crew size")
+	check(run.balloon.station_count == Roles.COUNT, "all stations on board")
 	var manned := 0
 	for st: Station in run.balloon.stations:
 		if st.operator != null:
@@ -141,6 +144,9 @@ func _test_run_smoke(bots: int, frames: int) -> void:
 		run.spawn_enemy("goblin", run.balloon.center() + Vector2(0, 100))
 		run.spawn_enemy("bomber", run.balloon.center() + Vector2(150, 40))
 		run.spawn_drop("fuel", run.balloon.center() + Vector2(40, 60), 0)
+	for st: Station in run.balloon.stations:
+		if st.role % 2 == bots % 2:
+			run.break_station(st)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = bots
 	for f in frames:
@@ -158,6 +164,40 @@ func _test_run_smoke(bots: int, frames: int) -> void:
 	print("smoke %d bots: balloon at %s, hull %.0f, fuel %.0f, gold %d, crew %d, finished %s" % [
 		bots, run.balloon.center().round(), run.balloon.hull, run.balloon.fuel, run.gold, run.balloon.crew.size(), run.finished])
 	check(is_instance_valid(run.balloon), "run survives %d frames with %d bots" % [frames, bots])
+	run.queue_free()
+	Players.clear()
+	await get_tree().process_frame
+
+
+## A broken burner gives no heat until its operator holds A on it; a leak wears the hull down.
+func _test_breakdown() -> void:
+	Players.clear()
+	var s := Players.add_bot()
+	s.role = Roles.BURNER
+	Game.level_seed = 99
+	Game.difficulty = Difficulty.NORMAL
+	var run: Node = load("res://scripts/run/run.gd").new()
+	add_child(run)
+	await get_tree().physics_frame
+	var b: Balloon = run.balloon
+	var burner: Station = b.stations[Roles.BURNER]
+	run.break_station(burner)
+	run.break_station(b.stations[Roles.REPAIR])
+	var heat := b.heat
+	var hull := b.hull
+	var a_btn: Array[bool] = [true, false, false, false, false, false, false, false]
+	Players.bot_inputs[s.device] = {"buttons": a_btn}
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(burner.broken and b.heat <= heat, "a broken burner gives no heat")
+	for i in 120:
+		await get_tree().physics_frame
+	check(not burner.broken, "holding A on a broken station fixes it")
+	check(b.hull < hull, "a leak wears the hull down")
+	hull = b.hull
+	for i in 60:
+		await get_tree().physics_frame
+	check(b.hull < hull, "the hull does not heal by itself")
 	run.queue_free()
 	Players.clear()
 	await get_tree().process_frame

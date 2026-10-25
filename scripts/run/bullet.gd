@@ -19,6 +19,7 @@ func _physics_process(dt: float) -> void:
 		var cell := t.cell_at(global_position)
 		if t.data.is_solid(cell.x, cell.y):
 			t.damage_cell(cell, 1.0)
+			Sfx.play("ping", randf_range(0.8, 1.3), -20.0)
 			run.burst(global_position, Color("c0a080"), 4)
 			queue_free()
 			return

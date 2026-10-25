@@ -1,7 +1,7 @@
 class_name Roles
 extends RefCounted
-## Stations on the balloon. Their ids double as unlock order: the first three are always there,
-## then one more unfolds for each extra player.
+## Stations on the balloon. Every station is on board at any crew size, so a small crew has to
+## run between them; a big crew can man them all.
 
 const BURNER := 0
 const SHRINKER := 1
@@ -18,16 +18,17 @@ const NAMES: Array[String] = [
 	"Burner", "Shrinker", "Propeller", "Shooter turret",
 	"Fishing rod", "Repair kit", "Lamp", "Second propeller",
 ]
-const UNLOCKS: Array[String] = [
-	"", "", "", "Enemies spawn from the next segment",
-	"Enemy drops can be caught", "Damage stays until repaired",
-	"Night sections ahead", "One propeller per side",
+## What a breakdown of each station does until someone holds A on it to fix it.
+const BREAKDOWNS: Array[String] = [
+	"The pilot light went out", "The shrinker rope snagged and pulls the envelope in",
+	"The propeller jammed", "The turret jammed", "The fishing line tangled",
+	"The envelope sprang a leak", "The lamp flickered out", "The second propeller jammed",
 ]
 
 
-## Number of stations on the balloon for a crew of this size.
-static func station_count(crew: int) -> int:
-	return clampi(crew, 3, COUNT)
+## Number of stations on the balloon. Always all of them; kept as a function for the setup screen.
+static func station_count(_crew: int) -> int:
+	return COUNT
 
 
 static func name_of(role: int) -> String:

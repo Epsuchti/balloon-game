@@ -1,14 +1,22 @@
 extends Node2D
 ## One flight. Builds the level from Game.level_seed + Game.difficulty, spawns the crew and runs
-## until the balloon lands, crashes or runs out of fuel. Players can join and leave at any time:
-## crew size decides which stations and mechanics are active, and never changes the level itself.
+## until the balloon lands, crashes or runs out of fuel. Players can join and leave at any time.
+## Every station is always on board. Crew size never changes the level itself; it sets the pressure:
+## how often stations break down and how many of the level's enemy spots actually spawn an enemy,
+## so a small crew is as busy running between stations as a big one is manning them.
 
 const OUT_OF_FUEL_GRACE := 12.0
 const RESPAWN_PENALTY := 5
 const NIGHT_COLOR := Color(0.08, 0.08, 0.16)
 const ZOOM := 0.9         # a bit more of the cave around the (big) balloon
 const ZOOM_OUT := 0.7     # about 22% further out while drops fall
-const START_SUPPLIES: Array[String] = ["fuel", "fuel", "ammo"]
+const START_SUPPLIES: Array[String] = ["fuel", "ammo"]
+const FIRST_BREAKDOWN := 20.0
+# How likely each station is to be the next one to break.
+const BREAKDOWN_WEIGHTS := {
+	Roles.BURNER: 3.0, Roles.REPAIR: 3.0, Roles.SHRINKER: 2.0, Roles.PROPELLER: 2.0,
+	Roles.PROPELLER2: 1.0, Roles.TURRET: 1.0, Roles.FISHING: 1.0, Roles.LAMP: 1.0,
+}
 
 var level: LevelData
 var terrain: Terrain
@@ -30,7 +38,7 @@ var night := 0.0
 var out_of_fuel := 0.0
 var result := {}
 
-var _enemies_from := 1 << 30   # first segment where enemies may spawn
+var _next_breakdown := FIRST_BREAKDOWN
 var _spawned := PackedByteArray()
 var _canvas_mod: CanvasModulate
 var _background: Sprite2D
@@ -172,6 +180,7 @@ func _physics_process(dt: float) -> void:
 	_update_camera(dt)
 	if not finished:
 		_check_fuel(dt)
+		_pressure(dt)
 
 
 func _update_camera(dt: float) -> void:
@@ -225,7 +234,7 @@ var _hinted := {}
 ## Tell the crew how to refill, once per tank/magazine running low.
 func _supply_hints() -> void:
 	var low_fuel := balloon.fuel < Balloon.TANK * 0.35 and balloon.count_items("fuel") > 0
-	var low_ammo := balloon.station_count > Roles.TURRET and balloon.ammo < Balloon.MAGAZINE * 0.25 \
+	var low_ammo := balloon.ammo < Balloon.MAGAZINE * 0.25 \
 		and balloon.count_items("ammo") > 0
 	if low_fuel and not _hinted.get("fuel", false):
 		hud.message("Fuel low! Pick up a fuel can in the hold (A), carry it to the burner, press A", Color("f08838"))
@@ -233,6 +242,57 @@ func _supply_hints() -> void:
 		hud.message("Ammo low! Carry an ammo crate from the hold to the turret and press A", Color("a0c050"))
 	_hinted["fuel"] = low_fuel
 	_hinted["ammo"] = low_ammo
+
+
+## Seconds between breakdowns for a crew of this size: about 30 s for two players, 13 s for eight.
+static func breakdown_interval(crew: int, difficulty: int) -> float:
+	return 40.0 / (1.0 + 0.3 * (maxi(crew, 1) - 1)) * Difficulty.BREAKDOWN_MULT[difficulty]
+
+
+## Share of the level's enemy spots that spawn an enemy: 20% for two players, all of them from seven.
+static func enemy_chance(crew: int) -> float:
+	return clampf(0.2 + 0.175 * (crew - 2), 0.12, 1.0)
+
+
+## Most stations that can be broken at once.
+static func max_broken(crew: int) -> int:
+	return 1 + crew / 3
+
+
+func _pressure(dt: float) -> void:
+	_next_breakdown -= dt
+	if _next_breakdown > 0.0 or balloon.frozen:
+		return
+	_next_breakdown = breakdown_interval(max_crew, level.difficulty) * randf_range(0.7, 1.3)
+	var broken := 0
+	var total := 0.0
+	var options: Array[Station] = []
+	for st in balloon.stations:
+		if st.broken:
+			broken += 1
+			continue
+		if _breakdown_weight(st) > 0.0:
+			options.append(st)
+			total += _breakdown_weight(st)
+	if broken >= max_broken(max_crew) or options.is_empty():
+		return
+	var r := randf() * total
+	for st in options:
+		r -= _breakdown_weight(st)
+		if r <= 0.0:
+			break_station(st)
+			return
+
+
+func _breakdown_weight(st: Station) -> float:
+	if st.role == Roles.LAMP and night < 0.3:
+		return 0.0  # a dead lamp only matters at night
+	return BREAKDOWN_WEIGHTS[st.role]
+
+
+func break_station(st: Station) -> void:
+	st.break_down()
+	hud.message("%s! Take the %s and hold A to fix it" % [Roles.BREAKDOWNS[st.role], Roles.NAMES[st.role].to_lower()], Color("ff7050"))
 
 
 func _activate_spawns() -> void:
@@ -247,13 +307,15 @@ func _activate_spawns() -> void:
 		_spawned[i] = 1
 		if pos.x - bx < -200.0:
 			continue
-		if max_crew >= 4:
-			if sp["segment"] >= _enemies_from:
-				spawn_enemy(sp["kind"], pos)
-		else:
-			# No enemies with fewer than 4 players: their spots hold gold and fuel instead.
+		if sp["segment"] < 1:
+			continue  # the first segment is always calm
+		# Whether a spot spawns is decided per spot, so replays with the same crew size match.
+		var roll := float(hash(Vector3i(i, level.level_seed, 77)) % 1000) / 1000.0
+		if roll < enemy_chance(max_crew):
+			spawn_enemy(sp["kind"], pos)
+		elif i % 3 == 0:
 			var pk := Pickup.new()
-			pk.kind = "fuel" if i % 5 == 0 else "gold"
+			pk.kind = "gold"
 			pk.run = self
 			pk.position = pos
 			pickups.add_child(pk)
@@ -292,17 +354,9 @@ func _update_crew_size(initial: bool) -> void:
 	var n := Players.players.size()
 	if n <= max_crew:
 		return
-	var old := max_crew
 	max_crew = n
-	var count := Roles.station_count(max_crew)
-	var old_count := Roles.station_count(old) if old > 0 else 0
-	balloon.set_station_count(count, not initial)
-	balloon.self_heal = max_crew < 6
-	if old < 4 and max_crew >= 4:
-		_enemies_from = 0 if initial else cur_segment + 1
-	if not initial:
-		for r in range(old_count, count):
-			hud.message("New station: %s! %s" % [Roles.NAMES[r], Roles.UNLOCKS[r]], Color("f0c040"))
+	if initial:
+		balloon.set_station_count(Roles.COUNT, false)
 
 
 func crew_fell(slot: PlayerSlot, pos: Vector2, vel: Vector2) -> void:

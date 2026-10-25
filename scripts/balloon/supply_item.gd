@@ -30,7 +30,7 @@ func tick(dt: float) -> void:
 func needed() -> bool:
 	if kind == "fuel":
 		return balloon.fuel < Balloon.TANK * 0.35
-	return balloon.station_count > Roles.TURRET and balloon.ammo < Balloon.MAGAZINE * 0.25
+	return balloon.ammo < Balloon.MAGAZINE * 0.25
 
 
 func _draw() -> void:

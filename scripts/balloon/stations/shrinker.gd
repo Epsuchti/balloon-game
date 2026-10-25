@@ -9,6 +9,10 @@ func _operate(slot: PlayerSlot, _dt: float) -> void:
 		balloon.shrinking = true
 
 
+func _broken(_dt: float) -> void:
+	balloon.shrinking = true  # the snagged rope keeps pulling the envelope in
+
+
 func _idle(dt: float) -> void:
 	_spin += dt * (8.0 if balloon.shrinking else (-2.0 if balloon.envelope_size < 1.0 else 0.0))
 

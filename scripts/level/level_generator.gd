@@ -311,7 +311,7 @@ static func _max_slope(data: LevelData, x: int) -> float:
 
 static func _supplies(data: LevelData, rng: RandomNumberGenerator, x0: int, x1: int, mult: float) -> void:
 	var kinds: Array[String] = []
-	for i in roundi(rng.randf_range(2.0, 3.0) * mult):
+	for i in roundi(rng.randf_range(1.0, 2.0) * mult):
 		kinds.append("fuel")
 	for i in roundi(rng.randf_range(1.0, 2.0) * mult):
 		kinds.append("ammo")

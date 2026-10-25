@@ -1,7 +1,9 @@
 extends Station
-## Hold A to patch the hull. With 6+ players the balloon no longer heals by itself.
+## Hold A to patch the hull; it never heals by itself. When this station "breaks", the envelope
+## has sprung a leak that wears the hull down until someone fixes it here.
 
 const RATE := 10.0
+const LEAK := 0.8
 var _working := false
 
 
@@ -13,6 +15,10 @@ func _operate(slot: PlayerSlot, dt: float) -> void:
 
 func on_leave() -> void:
 	_working = false
+
+
+func _broken(dt: float) -> void:
+	balloon.wear(LEAK * dt)
 
 
 func _idle(_dt: float) -> void:

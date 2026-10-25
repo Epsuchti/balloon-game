@@ -13,6 +13,7 @@ const TUNNEL_FACTOR: Array[float] = [3.0, 2.0, 1.4]    # narrowest tunnel, in ba
 const WIND: Array[float] = [12.0, 24.0, 40.0]          # wind zone push, px/s^2
 const ENEMY_DENSITY: Array[float] = [0.6, 1.0, 1.6]
 const PICKUP_MULT: Array[float] = [1.6, 1.0, 0.6]
+const BREAKDOWN_MULT: Array[float] = [1.35, 1.0, 0.75]  # time between breakdowns
 const LANDING_SPEED: Array[float] = [60.0, 40.0, 25.0] # px/s allowed on touchdown
 
 

@@ -187,8 +187,7 @@ class Bars:
 		_text(font, Vector2(70, 15), "%d:%02d" % [int(t) / 60, int(t) % 60], 10, Color.WHITE)
 		_bar(Vector2(8, 22), "Hull", b.hull / Balloon.MAX_HULL, Color("e04848"))
 		_bar(Vector2(8, 31), "Fuel", b.fuel / Balloon.TANK, Color("f08838"), "+%d" % b.count_items("fuel"))
-		if b.station_count > Roles.TURRET:
-			_bar(Vector2(8, 40), "Ammo", float(b.ammo) / Balloon.MAGAZINE, Color("a0c050"), "+%d" % b.count_items("ammo"))
+		_bar(Vector2(8, 40), "Ammo", float(b.ammo) / Balloon.MAGAZINE, Color("a0c050"), "+%d" % b.count_items("ammo"))
 		# Top-center: progress to the landing platform.
 		var lvl: LevelData = run.level
 		var px := w / 2.0 - 120.0
@@ -204,7 +203,13 @@ class Bars:
 		# Top-right: level and crew.
 		draw_rect(Rect2(w - 124, 4, 120, 30), Color(0.08, 0.06, 0.12, 0.75))
 		_text(font, Vector2(w - 118, 15), "%s  %s" % [LevelCode.encode(lvl.level_seed, lvl.difficulty), Difficulty.NAMES[lvl.difficulty]], 8, Color.WHITE)
-		_text(font, Vector2(w - 118, 27), "Crew %d  ·  %d stations" % [Players.players.size(), b.station_count], 8, Color("c0c0d0"))
+		var broken := 0
+		for st in b.stations:
+			if st.broken:
+				broken += 1
+		_text(font, Vector2(w - 118, 27), "Crew %d" % Players.players.size(), 8, Color("c0c0d0"))
+		if broken > 0:
+			_text(font, Vector2(w - 70, 27), "%d broken!" % broken, 8, Color("ff7050"))
 		# Landing speed when close to the platform.
 		var plat := lvl.platform_px()
 		if absf(b.center().x - plat.get_center().x) < 260.0 and not run.finished:
