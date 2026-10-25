@@ -23,6 +23,16 @@ func _physics_process(dt: float) -> void:
 			run.burst(global_position, Color("c0a080"), 4)
 			queue_free()
 			return
+		var boss: Boss = run.boss
+		if is_instance_valid(boss) and boss.alive() and boss.global_position.distance_to(global_position) < Boss.RADIUS:
+			boss.hit(1)
+			queue_free()
+			return
+		for ball in run.bullets.get_children():
+			if ball is Boss.GrumbleBall and ball.global_position.distance_to(global_position) < 6.0:
+				ball.shot()
+				queue_free()
+				return
 		for e: Enemy in run.enemies.get_children():
 			if not e.dying and e.global_position.distance_to(global_position) < e.radius + 2.0:
 				e.hit(1)

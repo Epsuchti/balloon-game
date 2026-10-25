@@ -185,7 +185,10 @@ func _urgent(b: Balloon) -> bool:
 	return false
 
 
-func _nearest_enemy(b: Balloon) -> Enemy:
+func _nearest_enemy(b: Balloon) -> Node2D:
+	var boss: Boss = run.boss
+	if is_instance_valid(boss) and boss.alive() and boss.global_position.distance_to(b.center()) < 240.0:
+		return boss
 	var best: Enemy = null
 	for e: Enemy in run.enemies.get_children():
 		var d := e.global_position.distance_to(b.center())

@@ -39,6 +39,8 @@ func tick(dt: float) -> void:
 	if _settled:
 		if kind == "harpy":
 			balloon.wear(PECK_DAMAGE * dt)
+			if int(_t * 3.0) != int((_t - dt) * 3.0):
+				Sfx.play("peck", randf_range(0.9, 1.2), -12.0)
 	queue_redraw()
 
 

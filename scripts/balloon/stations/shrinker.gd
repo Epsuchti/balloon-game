@@ -4,9 +4,16 @@ extends Station
 var _spin := 0.0
 
 
-func _operate(slot: PlayerSlot, _dt: float) -> void:
+var _creak := 0.0
+
+
+func _operate(slot: PlayerSlot, dt: float) -> void:
 	if slot.pressed(PlayerSlot.Btn.A) or slot.move.y > 0.5:
 		balloon.shrinking = true
+		_creak -= dt
+		if _creak <= 0.0 and balloon.envelope_size > 0.62:
+			_creak = 0.35
+			Sfx.play("creak", randf_range(0.8, 1.2), -10.0)
 
 
 func _broken(_dt: float) -> void:

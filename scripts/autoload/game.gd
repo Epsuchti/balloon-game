@@ -34,6 +34,7 @@ func _ready() -> void:
 	level_seed = random_seed()
 	team_name = random_team_name()
 	get_tree().root.theme = _make_theme()
+	get_tree().node_added.connect(_on_node_added)
 	get_tree().root.size_changed.connect(_fit_screen)
 	_settings.load(SETTINGS_PATH)
 	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_args().has("--windowed"):
@@ -56,6 +57,14 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+## Every menu button clicks when focused and pressed.
+func _on_node_added(node: Node) -> void:
+	if node is BaseButton:
+		var b := node as BaseButton
+		b.focus_entered.connect(Sfx.play.bind("nav", 1.0, -10.0))
+		b.pressed.connect(Sfx.play.bind("confirm"))
+
+
 func _apply_fullscreen(on: bool) -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if on else DisplayServer.WINDOW_MODE_WINDOWED)
 
@@ -70,6 +79,7 @@ func goto(screen: String) -> void:
 		_screen.queue_free()
 	_screen = load(SCREENS[screen]).new()
 	_root.add_child(_screen)
+	Music.play("flight" if screen == "run" else "menu")
 	_fit_screen()
 
 

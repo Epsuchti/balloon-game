@@ -39,6 +39,10 @@ var out_of_fuel := 0.0
 var result := {}
 
 var _next_breakdown := FIRST_BREAKDOWN
+var boss: Boss
+var _windy := false
+var _fuel_beep := 0.0
+var _boss_x := INF    # the boss turns up when the balloon passes this x
 var _spawned := PackedByteArray()
 var _canvas_mod: CanvasModulate
 var _background: Sprite2D
@@ -95,6 +99,9 @@ func _build_world() -> void:
 		pk.position = p["pos"]
 		pickups.add_child(pk)
 	_spawned.resize(level.spawns.size())
+	if has_boss(level.level_seed):
+		var s := level.segments[int(level.segments.size() * 0.55)]
+		_boss_x = s["x0"] * Tiles.SIZE
 
 	balloon = Balloon.new()
 	balloon.run = self
@@ -176,11 +183,27 @@ func _physics_process(dt: float) -> void:
 		elapsed += dt
 	cur_segment = level.segment_at_px(balloon.center().x)
 	_activate_spawns()
+	if balloon.center().x > _boss_x and not finished:
+		_boss_x = INF
+		spawn_boss()
 	_update_night(dt)
+	var windy := wind_at(balloon.center()) != Vector2.ZERO
+	if windy and not _windy:
+		Sfx.play("gust", randf_range(0.9, 1.1), -6.0)
+	_windy = windy
 	_update_camera(dt)
 	if not finished:
 		_check_fuel(dt)
 		_pressure(dt)
+	_pick_music()
+
+
+func _pick_music() -> void:
+	if finished:
+		Music.play("")
+		return
+	var danger := boss != null or balloon.hull < Balloon.MAX_HULL * 0.3 or out_of_fuel > 0.0
+	Music.play("danger" if danger else "flight")
 
 
 func _update_camera(dt: float) -> void:
@@ -220,6 +243,10 @@ func _check_fuel(dt: float) -> void:
 			if d.kind == "fuel":
 				has_fuel = true
 	_supply_hints()
+	_fuel_beep -= dt
+	if balloon.fuel < Balloon.TANK * 0.15 and _fuel_beep <= 0.0:
+		_fuel_beep = 1.6
+		Sfx.play("lowfuel", 1.0, -6.0)
 	if has_fuel:
 		out_of_fuel = 0.0
 		return
@@ -295,6 +322,36 @@ func break_station(st: Station) -> void:
 	hud.message("%s! Take the %s and hold A to fix it" % [Roles.BREAKDOWNS[st.role], Roles.NAMES[st.role].to_lower()], Color("ff7050"))
 
 
+## Three out of four levels have a boss, decided by the seed so a level code always plays the same.
+static func has_boss(level_seed: int) -> bool:
+	return hash(Vector2i(level_seed, 4711)) % 100 < 75
+
+
+func spawn_boss() -> void:
+	boss = Boss.new()
+	boss.run = self
+	boss.crew = max_crew
+	boss.position = balloon.center() + Vector2(320, -120)
+	enemies.add_sibling(boss)
+	Sfx.play("roar")
+	shake(5.0)
+	hud.message("%s appears! Man the turret!" % Boss.NAME, Color("ff9070"))
+
+
+func boss_defeated(b: Boss) -> void:
+	Sfx.play("boom", 0.6)
+	shake(8.0)
+	burst(b.global_position, Color("f4f1ea"), 40)
+	collect("gold", 40, b.global_position)
+	spawn_drop("fuel", b.global_position, 0)
+	spawn_drop("ammo", b.global_position + Vector2(10, 0), 0)
+	hud.message("%s is down! +40 gold" % Boss.NAME, Color("f0c040"))
+
+
+func shake(amount: float) -> void:
+	_shake = maxf(_shake, amount)
+
+
 func _activate_spawns() -> void:
 	var bx := balloon.center().x
 	for i in level.spawns.size():
@@ -313,6 +370,7 @@ func _activate_spawns() -> void:
 		var roll := float(hash(Vector3i(i, level.level_seed, 77)) % 1000) / 1000.0
 		if roll < enemy_chance(max_crew):
 			spawn_enemy(sp["kind"], pos)
+			Sfx.play({"bat": "screech", "harpy": "caw", "goblin": "cackle", "bomber": "beep"}[sp["kind"]], 1.0, -10.0)
 		elif i % 3 == 0:
 			var pk := Pickup.new()
 			pk.kind = "gold"
@@ -368,6 +426,7 @@ func crew_fell(slot: PlayerSlot, pos: Vector2, vel: Vector2) -> void:
 	c.limit = 8.0 if max_crew >= 5 else 3.0
 	chutes.add_child(c)
 	Sfx.play("fall")
+	get_tree().create_timer(0.3).timeout.connect(Sfx.play.bind("chute"))
 	hud.message("%s fell out!" % slot.label(), slot.color)
 
 
@@ -378,6 +437,7 @@ func respawn_chute(c: Chute) -> void:
 		float_text(balloon.center(), "-%d" % lost, Color("ff6060"))
 	if Players.players.has(c.slot) and balloon.crew_for(c.slot) == null:
 		balloon.spawn_crew(c.slot)
+		Sfx.play("join", 0.8)
 	c.queue_free()
 
 

@@ -264,6 +264,8 @@ func _impact(col: KinematicCollision2D, n: Vector2, speed: float, dt: float) -> 
 		return
 	if speed > SAFE_IMPACT:
 		take_damage((speed - SAFE_IMPACT) * IMPACT_DAMAGE)
+	elif speed > 12.0 and since_damage > 0.3:
+		Sfx.play("bump", randf_range(0.9, 1.1), -10.0)
 	if speed > 30.0:
 		knock_crew(-n * speed * 1.4 + Vector2(0, -40))
 	if m == Tiles.DIRT:
@@ -405,6 +407,7 @@ func add_boarder(kind: String, from_global: Vector2) -> void:
 	rig.add_child(b)
 	rig.move_child(_front, -1)
 	boarders.append(b)
+	Sfx.play("board")
 
 
 func shove_boarder(b: Boarder, dir: Vector2) -> void:

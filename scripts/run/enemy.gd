@@ -84,6 +84,8 @@ func _physics_process(dt: float) -> void:
 			if _fuse < 0.0 and global_position.distance_to(b.center()) < 50.0:
 				_fuse = 0.0
 	if _fuse >= 0.0:
+		if int(_fuse * 7.0) != int((_fuse + dt) * 7.0) or _fuse == 0.0:
+			Sfx.play("beep", 1.0 + _fuse, -8.0)
 		_fuse += dt
 		if _fuse >= FUSE:
 			explode()

@@ -5,8 +5,15 @@ extends Station
 var _phase := 0.0
 
 
-func _operate(slot: PlayerSlot, _dt: float) -> void:
+var _whir := 0.0
+
+
+func _operate(slot: PlayerSlot, dt: float) -> void:
 	balloon.thrust_input += slot.move.x
+	_whir -= dt * absf(slot.move.x)
+	if _whir <= 0.0 and absf(slot.move.x) > 0.3:
+		_whir = 0.12
+		Sfx.play("whir", 0.8 + absf(balloon.thrust) * 0.3, -14.0)
 
 
 func _idle(dt: float) -> void:

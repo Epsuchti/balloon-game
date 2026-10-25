@@ -416,3 +416,143 @@ func cone_texture() -> Texture2D:
 				img.set_pixel(x, y, Color(1, 1, 1, a))
 		_cone = ImageTexture.create_from_image(img)
 	return _cone
+
+
+## The boss: a big, grumpy, fuzzy blob (after the team's mascot). Frames: 0-1 idle with arms
+## bobbing, 2 winding up a charge (arms up, mouth wide).
+func boss_frames() -> Array[Texture2D]:
+	if _boss.is_empty():
+		for f in 3:
+			_boss.append(ImageTexture.create_from_image(_boss_image(f)))
+	return _boss
+
+
+var _boss: Array[Texture2D] = []
+
+
+func _boss_image(frame: int) -> Image:
+	var w := 64
+	var h := 56
+	var img := Image.create_empty(w, h, false, Image.FORMAT_RGBA8)
+	var ink := Color("1a1418")
+	var fur := Color("f4f1ea")
+	var shade := Color("d6d0c6")
+	var c := Vector2(32, 27)
+	# Fuzzy, slightly pear-shaped body with a bump on top.
+	var inside := func(x: float, y: float) -> bool:
+		var d := Vector2(x, y) - c
+		var a := d.angle()
+		var rx := 25.0 + (2.0 if d.y > 0.0 else 0.0)
+		var ry := 20.0
+		var r := 1.0 + 0.045 * sin(a * 11.0) + 0.03 * sin(a * 7.0 + 1.3)
+		var bump := Vector2(x, y) - Vector2(38, 8)
+		return (d.x / rx) * (d.x / rx) + (d.y / ry) * (d.y / ry) <= r * r or bump.length() < 6.0
+	for y in h:
+		for x in w:
+			if inside.call(x + 0.5, y + 0.5):
+				var col := fur
+				if (x - c.x) * 0.5 + (y - c.y) > 14.0:
+					col = shade
+				img.set_pixel(x, y, col)
+	# Outline: body pixels next to the outside.
+	var body := img.duplicate() as Image
+	for y in h:
+		for x in w:
+			if body.get_pixel(x, y).a == 0.0:
+				continue
+			for o in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var p: Vector2i = Vector2i(x, y) + o
+				if p.x < 0 or p.y < 0 or p.x >= w or p.y >= h or body.get_pixel(p.x, p.y).a == 0.0:
+					img.set_pixel(x, y, ink)
+					break
+	# Fur strokes along the top edge.
+	for i in 14:
+		var a := PI + 0.25 + i * (PI - 0.5) / 13.0
+		var p := c + Vector2(cos(a) * 26.0, sin(a) * 21.0)
+		_px(img, p.x, p.y - 1.0, ink)
+		_px(img, p.x + (1.0 if i % 2 == 0 else -1.0), p.y - 2.0, ink)
+	# Little hair tuft lines inside the body.
+	for p in [Vector2(14, 24), Vector2(50, 26), Vector2(20, 40), Vector2(44, 40), Vector2(30, 12)]:
+		_px(img, p.x, p.y, shade.darkened(0.25))
+		_px(img, p.x + 1, p.y - 1, shade.darkened(0.25))
+	# Feet and stubby arms.
+	for fx in [24, 40]:
+		for y in range(46, 50):
+			for x in range(fx - 4, fx + 5):
+				if Vector2((x - fx) / 4.5, (y - 47.5) / 2.5).length() <= 1.0:
+					img.set_pixel(x, y, fur if y < 48 else shade)
+		_line(img, Vector2(fx - 4, 49), Vector2(fx + 4, 49), ink)
+		_line(img, Vector2(fx - 5, 47), Vector2(fx - 4, 49), ink)
+		_line(img, Vector2(fx + 5, 47), Vector2(fx + 4, 49), ink)
+	var arm_y := 2.0 if frame == 1 else (-6.0 if frame == 2 else 0.0)
+	_thick(img, Vector2(8, 30), Vector2(2, 34 + arm_y), ink, 1.5)
+	_thick(img, Vector2(56, 30), Vector2(62, 34 + arm_y), ink, 1.5)
+	# Eyes: white with an outline, pupils looking down and in.
+	for ex in [24, 40]:
+		for y in range(17, 28):
+			for x in range(ex - 5, ex + 6):
+				var d := Vector2(x - ex, y - 22).length()
+				if d <= 4.6:
+					img.set_pixel(x, y, Color.WHITE if d < 3.6 else ink)
+		var px: int = ex + (1 if ex < 32 else -1)
+		for y in range(22, 25):
+			for x in range(px - 1, px + 1):
+				img.set_pixel(x, y, ink)
+	# Angry eyebrows slanting down to the middle; they also cut off the top of the eyes.
+	_thick(img, Vector2(17, 14), Vector2(29, 19), ink, 1.6)
+	_thick(img, Vector2(47, 14), Vector2(35, 19), ink, 1.6)
+	for x in range(18, 30):
+		for y in range(15, int(14.0 + (x - 17) * 5.0 / 12.0) + 2):
+			if img.get_pixel(x, y) == Color.WHITE:
+				img.set_pixel(x, y, fur)
+	for x in range(35, 47):
+		for y in range(15, int(14.0 + (47 - x) * 5.0 / 12.0) + 2):
+			if img.get_pixel(x, y) == Color.WHITE:
+				img.set_pixel(x, y, fur)
+	# Gritted-teeth grimace, corners turned down; wider when winding up.
+	var mw := 13 if frame == 2 else 11
+	var mh := 6 if frame == 2 else 4
+	var top := 32
+	for x in range(32 - mw, 32 + mw + 1):
+		var droop := int(pow(absf(x - 32) / float(mw), 3.0) * 3.0)
+		for y in range(top + droop - int(absf(x - 32) / float(mw) * 1.5), top + mh + droop):
+			img.set_pixel(x, y, Color.WHITE)
+	for x in range(32 - mw - 1, 32 + mw + 2):
+		var xx := clampi(x, 32 - mw, 32 + mw)
+		var droop := int(pow(absf(xx - 32) / float(mw), 3.0) * 3.0)
+		var y0 := top + droop - int(absf(xx - 32) / float(mw) * 1.5) - 1
+		img.set_pixel(x, y0, ink)
+		img.set_pixel(x, top + mh + droop, ink)
+		if (x - 32) % 3 == 0 and absf(x - 32) < mw:
+			for y in range(y0 + 1, top + mh + droop):
+				img.set_pixel(x, y, ink)
+	_line(img, Vector2(32 - mw, top + mh / 2 + 3), Vector2(32 + mw, top + mh / 2 + 3), Color(0, 0, 0, 0))
+	for x in range(32 - mw + 1, 32 + mw):
+		var droop := int(pow(absf(x - 32) / float(mw), 3.0) * 3.0)
+		var mid := top + droop + mh / 2 - int(absf(x - 32) / float(mw) * 0.75)
+		img.set_pixel(x, mid, ink)
+	return img
+
+
+func _px(img: Image, x: float, y: float, col: Color) -> void:
+	var xi := int(x)
+	var yi := int(y)
+	if xi >= 0 and yi >= 0 and xi < img.get_width() and yi < img.get_height():
+		img.set_pixel(xi, yi, col)
+
+
+func _line(img: Image, a: Vector2, b: Vector2, col: Color) -> void:
+	var n := int(maxf(absf(b.x - a.x), absf(b.y - a.y))) + 1
+	for i in n + 1:
+		var p := a.lerp(b, float(i) / n)
+		_px(img, p.x, p.y, col)
+
+
+func _thick(img: Image, a: Vector2, b: Vector2, col: Color, r: float) -> void:
+	var n := int(a.distance_to(b) * 2.0) + 1
+	for i in n + 1:
+		var p := a.lerp(b, float(i) / n)
+		for y in range(int(p.y - r), int(p.y + r) + 1):
+			for x in range(int(p.x - r), int(p.x + r) + 1):
+				if Vector2(x + 0.5, y + 0.5).distance_to(p) <= r:
+					_px(img, x, y, col)

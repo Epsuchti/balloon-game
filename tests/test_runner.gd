@@ -53,6 +53,13 @@ func _test_roles() -> void:
 	check(Run.breakdown_interval(2, Difficulty.NORMAL) > Run.breakdown_interval(8, Difficulty.NORMAL), "big crews get more breakdowns")
 	check(Run.enemy_chance(2) < 0.3 and Run.enemy_chance(2) > 0.0, "two players see a few enemies")
 	check(Run.enemy_chance(7) >= 1.0, "seven players get every enemy")
+	var song: AudioStreamWAV = Music.render("danger")
+	check(song.data.size() > 100000 and song.loop_mode == AudioStreamWAV.LOOP_FORWARD, "the soundtrack renders and loops")
+	var bosses := 0
+	for i in 1000:
+		if Run.has_boss(i):
+			bosses += 1
+	check(bosses > 700 and bosses < 800, "about three in four levels have a boss (%d/1000)" % bosses)
 
 
 func _test_generator() -> void:
@@ -144,6 +151,7 @@ func _test_run_smoke(bots: int, frames: int) -> void:
 		run.spawn_enemy("goblin", run.balloon.center() + Vector2(0, 100))
 		run.spawn_enemy("bomber", run.balloon.center() + Vector2(150, 40))
 		run.spawn_drop("fuel", run.balloon.center() + Vector2(40, 60), 0)
+		run.spawn_boss()
 	for st: Station in run.balloon.stations:
 		if st.role % 2 == bots % 2:
 			run.break_station(st)
@@ -198,6 +206,14 @@ func _test_breakdown() -> void:
 	for i in 60:
 		await get_tree().physics_frame
 	check(b.hull < hull, "the hull does not heal by itself")
+	run.spawn_boss()
+	var boss: Boss = run.boss
+	for i in 240:
+		await get_tree().physics_frame
+	check(is_instance_valid(boss) and boss.alive(), "the boss shows up and stays")
+	while is_instance_valid(boss) and boss.alive():
+		boss.hit(1)
+	check(run.gold >= 40, "beating the boss pays out gold")
 	run.queue_free()
 	Players.clear()
 	await get_tree().process_frame

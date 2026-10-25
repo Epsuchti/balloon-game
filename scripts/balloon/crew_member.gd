@@ -124,7 +124,7 @@ func _interact() -> bool:
 		if it.carrier == null and absf(it.position.x - position.x) <= REACH and absf(it.position.y - position.y) <= 6.0:
 			carrying = it
 			it.carrier = self
-			Sfx.play("tick")
+			Sfx.play("pickup")
 			return true
 	return false
 
@@ -134,11 +134,13 @@ func take_station(st: Station) -> void:
 	st.operator = self
 	position = st.position
 	vel = Vector2.ZERO
-	Sfx.play("tick", 1.3)
+	Sfx.play("take")
 
 
 func leave_station() -> void:
 	if station != null:
+		if slot.connected:
+			Sfx.play("leave")
 		station.operator = null
 		station.on_leave()
 		station = null
@@ -153,6 +155,7 @@ func drop_carried(lost: bool) -> void:
 	else:
 		carrying.position = position + Vector2(0, -6)
 		carrying.vel = Vector2(facing * 30.0, -40.0)
+		Sfx.play("drop")
 	carrying = null
 
 

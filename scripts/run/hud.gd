@@ -92,6 +92,7 @@ func show_pause() -> void:
 	if _pause != null:
 		return
 	get_tree().paused = true
+	Sfx.play("pause")
 	_pause_age = 0.0
 	_pause = _panel("Paused")
 	var box: VBoxContainer = _pause.get_child(0)
@@ -200,6 +201,13 @@ class Bars:
 		draw_rect(Rect2(px, 8, 240.0 * prog, 4), Color("6ec3f0"))
 		draw_rect(Rect2(px + 238, 4, 2, 10), Color("f0c040"))
 		draw_rect(Rect2(px + 240.0 * prog - 2.0, 5, 4, 8), Color.WHITE)
+		# Boss health under the progress strip.
+		var boss: Boss = run.boss
+		if is_instance_valid(boss) and boss.alive():
+			draw_rect(Rect2(px + 40, 18, 160, 14), Color(0.08, 0.06, 0.12, 0.8))
+			draw_rect(Rect2(px + 44, 27, 152, 3), Color(0, 0, 0, 0.6))
+			draw_rect(Rect2(px + 44, 27, 152.0 * boss.hp / boss.max_hp, 3), Color("e05050"))
+			_text(font, Vector2(px + 44, 25), Boss.NAME, 8, Color("f4f1ea"))
 		# Top-right: level and crew.
 		draw_rect(Rect2(w - 124, 4, 120, 30), Color(0.08, 0.06, 0.12, 0.75))
 		_text(font, Vector2(w - 118, 15), "%s  %s" % [LevelCode.encode(lvl.level_seed, lvl.difficulty), Difficulty.NAMES[lvl.difficulty]], 8, Color.WHITE)

@@ -23,6 +23,7 @@ Players="*res://scripts/autoload/players.gd"
 Scores="*res://scripts/autoload/scores.gd"
 Sfx="*res://scripts/autoload/sfx.gd"
 Art="*res://scripts/autoload/art.gd"
+Music="*res://scripts/autoload/music.gd"
 
 [display]
 

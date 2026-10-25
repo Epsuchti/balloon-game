@@ -52,6 +52,8 @@ func _idle(dt: float) -> void:
 				state = State.REEL
 		State.REEL:
 			hook = hook.move_toward(tip(), REEL_SPEED * dt)
+			if int(_t * 16.0) != int((_t - dt) * 16.0):
+				Sfx.play("reel", 1.0, -14.0)
 			if caught != null and not is_instance_valid(caught):
 				caught = null
 			if caught != null:
