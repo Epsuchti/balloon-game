@@ -112,5 +112,49 @@ func _test_scores() -> void:
 	Scores.load_scores()
 
 
+## Flies a run with bots mashing random buttons, to catch script errors in the whole game loop.
 func _test_run_smoke(bots: int, frames: int) -> void:
-	pass
+	Players.clear()
+	var slots: Array[PlayerSlot] = []
+	for i in bots:
+		var s := Players.add_bot()
+		s.role = i if i < Roles.station_count(bots) else Roles.ROAM
+		slots.append(s)
+	Game.level_seed = 4242
+	Game.difficulty = Difficulty.NORMAL
+	var run: Node = load("res://scripts/run/run.gd").new()
+	add_child(run)
+	await get_tree().physics_frame
+	check(run.balloon.crew.size() == bots, "%d crew in the basket" % bots)
+	check(run.balloon.station_count == Roles.station_count(bots), "stations match crew size")
+	var manned := 0
+	for st: Station in run.balloon.stations:
+		if st.operator != null:
+			manned += 1
+	check(manned == mini(bots, Roles.station_count(bots)), "players start at their chosen stations")
+	if bots >= 4:
+		run.spawn_enemy("bat", run.balloon.center() + Vector2(120, 0))
+		run.spawn_enemy("harpy", run.balloon.center() + Vector2(-120, 0))
+		run.spawn_enemy("goblin", run.balloon.center() + Vector2(0, 100))
+		run.spawn_enemy("bomber", run.balloon.center() + Vector2(150, 40))
+		run.spawn_drop("fuel", run.balloon.center() + Vector2(40, 60), 0)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = bots
+	for f in frames:
+		for s in slots:
+			if f % 20 == 0:
+				var buttons := []
+				for b in PlayerSlot.BUTTON_COUNT:
+					buttons.append(rng.randf() < (0.5 if b == PlayerSlot.Btn.A else 0.08) and b != PlayerSlot.Btn.START)
+				Players.bot_inputs[s.device] = {
+					"move": Vector2(rng.randf_range(-1, 1), rng.randf_range(-1, 1)),
+					"aim": Vector2.from_angle(rng.randf() * TAU), "buttons": buttons}
+		if f == frames / 2 and bots >= 2:
+			Players.remove(slots[-1])  # someone leaves mid-run
+		await get_tree().physics_frame
+	print("smoke %d bots: balloon at %s, hull %.0f, fuel %.0f, gold %d, crew %d, finished %s" % [
+		bots, run.balloon.center().round(), run.balloon.hull, run.balloon.fuel, run.gold, run.balloon.crew.size(), run.finished])
+	check(is_instance_valid(run.balloon), "run survives %d frames with %d bots" % [frames, bots])
+	run.queue_free()
+	Players.clear()
+	await get_tree().process_frame
