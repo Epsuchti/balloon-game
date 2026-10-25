@@ -6,6 +6,8 @@ extends Node2D
 const OUT_OF_FUEL_GRACE := 12.0
 const RESPAWN_PENALTY := 5
 const NIGHT_COLOR := Color(0.08, 0.08, 0.16)
+const ZOOM := 0.9         # a bit more of the cave around the (big) balloon
+const ZOOM_OUT := 0.7     # about 22% further out while drops fall
 const START_SUPPLIES: Array[String] = ["fuel", "fuel", "ammo"]
 
 var level: LevelData
@@ -33,7 +35,7 @@ var _spawned := PackedByteArray()
 var _canvas_mod: CanvasModulate
 var _background: Sprite2D
 var _shake := 0.0
-var _zoom := 1.0
+var _zoom := ZOOM
 var _paused_menu: Control
 
 
@@ -175,15 +177,15 @@ func _physics_process(dt: float) -> void:
 func _update_camera(dt: float) -> void:
 	var look := (balloon.velocity * 0.6).limit_length(90.0)
 	camera.position = balloon.center() + look
-	var want := 1.0
+	var want := ZOOM
 	if max_crew >= 5:
 		for d: Drop in drops.get_children():
 			if d.falling() or d.hooked:
-				want = 0.77
+				want = ZOOM_OUT
 		if chutes.get_child_count() > 0:
-			want = 0.77
+			want = ZOOM_OUT
 	# 20-30% zoom-out over about 0.3 s; overlapping drops share one zoom-out.
-	_zoom = move_toward(_zoom, want, dt * 0.23 / 0.3)
+	_zoom = move_toward(_zoom, want, dt * (ZOOM - ZOOM_OUT) / 0.3)
 	camera.zoom = Vector2(_zoom, _zoom)
 	_shake = maxf(0.0, _shake - dt * 30.0)
 	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake
@@ -208,12 +210,29 @@ func _check_fuel(dt: float) -> void:
 		for d: Drop in drops.get_children():
 			if d.kind == "fuel":
 				has_fuel = true
+	_supply_hints()
 	if has_fuel:
 		out_of_fuel = 0.0
 		return
 	out_of_fuel += dt
 	if out_of_fuel >= OUT_OF_FUEL_GRACE:
 		_finish(false, "Out of fuel")
+
+
+var _hinted := {}
+
+
+## Tell the crew how to refill, once per tank/magazine running low.
+func _supply_hints() -> void:
+	var low_fuel := balloon.fuel < Balloon.TANK * 0.35 and balloon.count_items("fuel") > 0
+	var low_ammo := balloon.station_count > Roles.TURRET and balloon.ammo < Balloon.MAGAZINE * 0.25 \
+		and balloon.count_items("ammo") > 0
+	if low_fuel and not _hinted.get("fuel", false):
+		hud.message("Fuel low! Pick up a fuel can in the hold (A), carry it to the burner, press A", Color("f08838"))
+	if low_ammo and not _hinted.get("ammo", false):
+		hud.message("Ammo low! Carry an ammo crate from the hold to the turret and press A", Color("a0c050"))
+	_hinted["fuel"] = low_fuel
+	_hinted["ammo"] = low_ammo
 
 
 func _activate_spawns() -> void:
@@ -456,7 +475,7 @@ func float_text(pos: Vector2, text: String, color: Color) -> void:
 
 func _on_landed(speed: float) -> void:
 	Sfx.play("land")
-	burst(balloon.global_position + Vector2(0, 20), Color("f0c040"), 30)
+	burst(balloon.world_of(Vector2(0, 20)), Color("f0c040"), 30)
 	_finish(true, "Landed at %d px/s" % roundi(speed))
 
 

@@ -1,7 +1,7 @@
 extends Node
 ## Flies a run with simple bot pilots and saves screenshots. Needs a display (e.g. xvfb-run):
 ##   xvfb-run godot --path . res://tools/screenshot.tscn -- <crew> <seconds,...> <out_prefix>
-## Use "menu", "setup" or "scores" instead of a crew size to capture that screen.
+## Use "menu", "setup", "controls" or "scores" instead of a crew size to capture that screen.
 
 var _shots: Array[float] = []
 var _prefix := "shot"
@@ -18,9 +18,9 @@ func _ready() -> void:
 	_prefix = args[2] if args.size() > 2 else "shot"
 	Players.clear()
 	Game.register_root(self)
-	if args.size() > 0 and args[0] in ["menu", "setup", "scores"]:
-		if args[0] == "setup":
-			Game.goto("setup")
+	if args.size() > 0 and args[0] in ["menu", "setup", "scores", "controls"]:
+		if args[0] == "setup" or args[0] == "controls":
+			Game.goto(args[0])
 			for i in 4:
 				_slots.append(Players.add_bot())
 			_slots[1].ready = true

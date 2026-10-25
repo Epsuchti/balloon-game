@@ -16,7 +16,7 @@ var _dir := Vector2.ZERO
 
 
 func tip() -> Vector2:
-	return global_position + Vector2(-24, -14)
+	return to_global(Vector2(-24, -14))
 
 
 func _operate(slot: PlayerSlot, _dt: float) -> void:

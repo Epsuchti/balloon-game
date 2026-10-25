@@ -213,7 +213,7 @@ func _start() -> void:
 	if not Game.fixed_level:
 		Game.use_random_level()
 	Sfx.play("land")
-	get_tree().create_timer(0.4).timeout.connect(func() -> void: Game.goto("run"))
+	get_tree().create_timer(0.4).timeout.connect(func() -> void: Game.goto("controls"))
 
 
 func _refresh() -> void:

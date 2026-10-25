@@ -9,6 +9,7 @@ var vel := Vector2.ZERO
 
 
 func tick(dt: float) -> void:
+	queue_redraw()
 	if carrier != null:
 		position = carrier.position + Vector2(0, -11)
 		return
@@ -25,6 +26,16 @@ func tick(dt: float) -> void:
 		vel = Vector2.ZERO
 
 
+## True when the tank or magazine this item refills is running low, so the item should call attention.
+func needed() -> bool:
+	if kind == "fuel":
+		return balloon.fuel < Balloon.TANK * 0.35
+	return balloon.station_count > Roles.TURRET and balloon.ammo < Balloon.MAGAZINE * 0.25
+
+
 func _draw() -> void:
 	var tex := Art.sprite(kind)
 	draw_texture(tex, Vector2(-floorf(tex.get_width() / 2.0), -tex.get_height()))
+	if carrier == null and needed() and int(Time.get_ticks_msec() / 250) % 2 == 0:
+		var y := -tex.get_height() - 4.0
+		draw_colored_polygon(PackedVector2Array([Vector2(-2, y), Vector2(2, y), Vector2(0, y + 2)]), Color("ffe060"))

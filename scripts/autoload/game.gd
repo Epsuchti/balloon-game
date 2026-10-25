@@ -4,6 +4,7 @@ extends Node
 const SCREENS := {
 	"menu": "res://scripts/ui/main_menu.gd",
 	"setup": "res://scripts/ui/setup_screen.gd",
+	"controls": "res://scripts/ui/controls_screen.gd",
 	"run": "res://scripts/run/run.gd",
 	"scores": "res://scripts/ui/scoreboard_screen.gd",
 }
@@ -22,14 +23,41 @@ var fixed_level := false   # the seed came from a level code or a scoreboard rep
 var team_name := ""
 var _root: Node
 var _screen: Node
+var _settings := ConfigFile.new()
+
+const SETTINGS_PATH := "user://settings.cfg"
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	randomize()
 	level_seed = random_seed()
 	team_name = random_team_name()
 	get_tree().root.theme = _make_theme()
 	get_tree().root.size_changed.connect(_fit_screen)
+	_settings.load(SETTINGS_PATH)
+	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_args().has("--windowed"):
+		_apply_fullscreen(_settings.get_value("display", "fullscreen", true))
+
+
+## F11, Alt+Enter or Cmd+Ctrl+F switch between fullscreen and a window. The choice is remembered.
+func _input(event: InputEvent) -> void:
+	var k := event as InputEventKey
+	if k == null or not k.pressed or k.echo:
+		return
+	var toggle := k.physical_keycode == KEY_F11 \
+		or (k.physical_keycode == KEY_ENTER and k.alt_pressed) \
+		or (k.physical_keycode == KEY_F and k.meta_pressed and k.ctrl_pressed)
+	if toggle:
+		var full := DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED
+		_apply_fullscreen(not full)
+		_settings.set_value("display", "fullscreen", not full)
+		_settings.save(SETTINGS_PATH)
+		get_viewport().set_input_as_handled()
+
+
+func _apply_fullscreen(on: bool) -> void:
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if on else DisplayServer.WINDOW_MODE_WINDOWED)
 
 
 func register_root(root: Node) -> void:

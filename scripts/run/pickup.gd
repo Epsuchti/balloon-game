@@ -16,7 +16,7 @@ func _physics_process(dt: float) -> void:
 	_t += dt
 	position = _base + Vector2(0, roundf(sin(_t * 2.0) * 2.0))
 	var b: Balloon = run.balloon
-	var local := b.to_local(global_position)
+	var local := b.local_of(global_position)
 	if Balloon.BASKET.grow(6.0).has_point(local) \
 			or ((local - Balloon.ENVELOPE_CENTER) / (Balloon.ENVELOPE_RADII + Vector2(6, 6))).length() <= 1.0:
 		run.collect(kind, 5 if kind == "gold" else 0, global_position)

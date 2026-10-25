@@ -3,14 +3,17 @@ extends CharacterBody2D
 ## The hot-air balloon. Moves with simple forces (lift, thrust, drag, wind) and owns everything in
 ## the basket: crew, stations, supplies and boarders, all simulated in the basket's local space.
 ## Lift = envelope heat x envelope size - gravity.
+## Everything inside is laid out in "rig" units and drawn SCALE times bigger; use local_of() to turn a
+## world position into rig units.
 
 signal landed(speed: float)
 signal crashed(reason: String)
 
+const SCALE := 1.5
 const BASKET := Rect2(-48, -18, 96, 38)
 const ENVELOPE_CENTER := Vector2(0, -64)
 const ENVELOPE_RADII := Vector2(44, 36)
-const CENTER_OFFSET := Vector2(0, -40)  # basket origin -> middle of the balloon's 96x120 box
+const CENTER_OFFSET := Vector2(0, -40) * SCALE  # basket origin -> middle of the balloon's box (world px)
 const FLOOR_Y := 16.0
 const DECK_Y := -2.0
 const DECK_HALF := 36.0
@@ -24,7 +27,7 @@ const DRAG := 0.8
 const THRUST := 50.0
 const RESTITUTION := 0.35
 const SAFE_IMPACT := 28.0     # px/s; slower bumps do no damage
-const IMPACT_DAMAGE := 0.5    # hull per px/s above that
+const IMPACT_DAMAGE := 1.0    # hull per px/s above that
 const MAX_HULL := 100.0
 const TANK := 100.0
 const MAGAZINE := 40
@@ -57,6 +60,7 @@ const STATION_SCRIPTS := {
 }
 
 var run: Node        # the Run that owns this flight
+var rig: Node2D      # holds everything in the basket, scaled by SCALE
 var terrain: Terrain
 var heat := 0.5
 var envelope_size := 1.0
@@ -94,45 +98,58 @@ func _ready() -> void:
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	var box := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
-	rect.size = BASKET.size
+	rect.size = BASKET.size * SCALE
 	box.shape = rect
-	box.position = BASKET.get_center()
+	box.position = BASKET.get_center() * SCALE
 	add_child(box)
 	var env := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
-	circle.radius = 36.0
+	circle.radius = 36.0 * SCALE
 	env.shape = circle
-	env.position = ENVELOPE_CENTER
+	env.position = ENVELOPE_CENTER * SCALE
 	add_child(env)
+	rig = Node2D.new()
+	rig.scale = Vector2(SCALE, SCALE)
+	add_child(rig)
 	for spot: Array in STATION_SPOTS:
 		var st: Station = STATION_SCRIPTS[spot[0]].new()
 		st.role = spot[0]
 		st.position = spot[1]
 		st.balloon = self
-		add_child(st)
+		rig.add_child(st)
 		stations.append(st)
 	_front = Front.new()
 	_front.z_index = 1
-	add_child(_front)
+	rig.add_child(_front)
 	_glow = PointLight2D.new()
 	_glow.texture = Art.glow_texture()
 	_glow.texture_scale = 2.2
 	_glow.color = Color(1.0, 0.85, 0.6)
 	_glow.energy = 0.0
 	_glow.position = Vector2(0, -10)
-	add_child(_glow)
+	rig.add_child(_glow)
 	_lamp = PointLight2D.new()
 	_lamp.texture = Art.cone_texture()
 	_lamp.texture_scale = 1.6
 	_lamp.color = Color(1.0, 0.95, 0.75)
 	_lamp.energy = 0.0
 	_lamp.position = stations[Roles.LAMP].position + Vector2(0, -12)
-	add_child(_lamp)
+	rig.add_child(_lamp)
 
 
 ## Middle of the balloon's bounding box, in world space.
 func center() -> Vector2:
 	return global_position + CENTER_OFFSET
+
+
+## A world position in rig units, to compare with BASKET, ENVELOPE_CENTER and the crew.
+func local_of(world_pos: Vector2) -> Vector2:
+	return rig.to_local(world_pos)
+
+
+## A rig-unit position in world space.
+func world_of(rig_pos: Vector2) -> Vector2:
+	return rig.to_global(rig_pos)
 
 
 func set_station_count(n: int, animate: bool) -> void:
@@ -272,8 +289,8 @@ func spawn_crew(slot: PlayerSlot, role := Roles.ROAM) -> CrewMember:
 	c.slot = slot
 	c.balloon = self
 	c.position = Vector2(randf_range(-HOLD_X, HOLD_X), FLOOR_Y)
-	add_child(c)
-	move_child(_front, -1)
+	rig.add_child(c)
+	rig.move_child(_front, -1)
 	crew.append(c)
 	if role >= 0 and role < station_count:
 		var st := stations[role]
@@ -318,8 +335,8 @@ func add_item(kind: String) -> void:
 	it.kind = kind
 	it.balloon = self
 	it.position = Vector2(randf_range(-HOLD_X + 2.0, HOLD_X - 2.0), FLOOR_Y - 12.0)
-	add_child(it)
-	move_child(_front, -1)
+	rig.add_child(it)
+	rig.move_child(_front, -1)
 	items.append(it)
 
 
@@ -357,10 +374,10 @@ func add_boarder(kind: String, from_global: Vector2) -> void:
 	var b := Boarder.new()
 	b.kind = kind
 	b.balloon = self
-	var side := 1.0 if to_local(from_global).x >= 0.0 else -1.0
+	var side := 1.0 if local_of(from_global).x >= 0.0 else -1.0
 	b.position = Vector2(side * 52.0, -10.0)
-	add_child(b)
-	move_child(_front, -1)
+	rig.add_child(b)
+	rig.move_child(_front, -1)
 	boarders.append(b)
 
 
@@ -375,6 +392,7 @@ func shove_boarder(b: Boarder, dir: Vector2) -> void:
 # --- Drawing ---
 
 func _draw() -> void:
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(SCALE, SCALE))
 	var tex := Art.envelope_texture(envelope_size)
 	var size := tex.get_size()
 	var bottom := ENVELOPE_CENTER.y + ENVELOPE_RADII.y

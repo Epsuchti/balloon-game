@@ -64,9 +64,24 @@ func _draw() -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, s))
 	_draw_station()
 	draw_set_transform(Vector2.ZERO)
-	if operator == null and blocked_by == null and _idle_crew_near():
-		var y := -18.0 + (1.0 if int(_t * 3.0) % 2 == 0 else 0.0)
+	var bob := 1.0 if int(_t * 3.0) % 2 == 0 else 0.0
+	var carried := _carried_for_me()
+	if carried != "":
+		# Someone is carrying what this station needs: point at it with the item's icon.
+		var tex := Art.sprite(carried)
+		var y := -36.0 + bob * 2.0
+		draw_texture(tex, Vector2(-floorf(tex.get_width() / 2.0), y - tex.get_height()))
+		draw_colored_polygon(PackedVector2Array([Vector2(-3, y + 1), Vector2(3, y + 1), Vector2(0, y + 5)]), Color("ffe060"))
+	elif operator == null and blocked_by == null and _idle_crew_near():
+		var y := -18.0 + bob
 		draw_colored_polygon(PackedVector2Array([Vector2(-2, y), Vector2(2, y), Vector2(0, y + 2)]), Color.WHITE)
+
+
+func _carried_for_me() -> String:
+	for c in balloon.crew:
+		if c.carrying != null and accepts(c.carrying.kind):
+			return c.carrying.kind
+	return ""
 
 
 func _idle_crew_near() -> bool:

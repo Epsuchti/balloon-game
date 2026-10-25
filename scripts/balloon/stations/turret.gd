@@ -15,7 +15,7 @@ func _operate(slot: PlayerSlot, dt: float) -> void:
 			balloon.ammo -= 1
 			var dir := Vector2.from_angle(angle)
 			if balloon.run != null:
-				balloon.run.spawn_bullet(global_position + Vector2(0, -9) + dir * 10.0, dir)
+				balloon.run.spawn_bullet(to_global(Vector2(0, -9) + dir * 10.0), dir)
 			Sfx.play("shoot", randf_range(0.9, 1.1), -12.0)
 		elif slot.just_pressed(PlayerSlot.Btn.A):
 			Sfx.play("empty")

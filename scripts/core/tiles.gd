@@ -3,10 +3,10 @@ extends RefCounted
 ## Tile size, materials and level dimensions shared by the generator, the terrain and the balloon.
 
 const SIZE := 8
-const SEG_W := 64          # tiles per level segment
-const LEVEL_H := 120       # level height in tiles
-const BALLOON_W := 12      # balloon bounding box in tiles (96 px)
-const BALLOON_H := 15      # (120 px)
+const SEG_W := 80          # tiles per level segment
+const LEVEL_H := 150       # level height in tiles
+const BALLOON_W := 18      # balloon bounding box in tiles (144 px at Balloon.SCALE 1.5)
+const BALLOON_H := 23      # (180 px, plus a little headroom)
 
 const AIR := 0
 const DIRT := 1

@@ -27,10 +27,11 @@ func _ready() -> void:
 	_bars.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_bars.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(_bars)
-	_msg = _label(14, HORIZONTAL_ALIGNMENT_CENTER)
+	_msg = _label(12, HORIZONTAL_ALIGNMENT_CENTER)
 	_msg.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	_msg.position = Vector2(-200, 56)
-	_msg.size = Vector2(400, 20)
+	_msg.position = Vector2(-230, 56)
+	_msg.size = Vector2(460, 40)
+	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_warn = _label(16, HORIZONTAL_ALIGNMENT_CENTER)
 	_warn.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	_warn.position = Vector2(-200, -60)
@@ -64,7 +65,7 @@ func _process(dt: float) -> void:
 		var m: Array = _queue.pop_front()
 		_msg.text = m[0]
 		_msg.add_theme_color_override("font_color", m[1])
-		_msg_time = 2.5
+		_msg_time = 2.0 + _msg.text.length() * 0.03
 	_msg.modulate.a = clampf(_msg_time * 2.0, 0.0, 1.0)
 	if run.out_of_fuel > 0.0 and not run.finished:
 		_warn.text = "Out of fuel! Find some in %d s" % ceili(run.OUT_OF_FUEL_GRACE - run.out_of_fuel)

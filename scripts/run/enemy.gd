@@ -55,13 +55,13 @@ func _physics_process(dt: float) -> void:
 		return
 	var target := b.center()
 	if kind == "harpy" or kind == "goblin":
-		target = b.global_position + Vector2(0, -16)
+		target = b.world_of(Vector2(0, -16))
 	var to := target - global_position
 	var speed: float = STATS[kind]["speed"]
 	var desired := to.normalized() * speed + Vector2(0, sin(_t * 4.0 + _wobble) * 18.0)
 	vel = vel.lerp(desired, minf(1.0, dt * 2.0))
 	_step(dt)
-	var local := b.to_local(global_position)
+	var local := b.local_of(global_position)
 	var touching := Balloon.BASKET.grow(radius).has_point(local) \
 		or ((local - Balloon.ENVELOPE_CENTER) / (Balloon.ENVELOPE_RADII + Vector2(radius, radius))).length() <= 1.0
 	match kind:

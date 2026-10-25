@@ -38,7 +38,7 @@ func _physics_process(dt: float) -> void:
 			run.drop_lost(self)
 			queue_free()
 			return
-	if Balloon.BASKET.grow(4.0).has_point(b.to_local(global_position)):
+	if Balloon.BASKET.grow(4.0).has_point(b.local_of(global_position)):
 		run.collect(kind, amount, global_position)
 		queue_free()
 	elif _t > 45.0:

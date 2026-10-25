@@ -183,7 +183,21 @@ func _test_screens() -> void:
 	Players.bot_inputs[b.device] = {"buttons": start}
 	for i in 60:
 		await get_tree().physics_frame
-	check(Game._screen != null and Game._screen.get_script().resource_path.ends_with("run.gd"), "everyone ready starts the run")
+	check(_screen_is("controls_screen.gd"), "everyone ready shows the controls")
+	var a_btn: Array[bool] = [true, false, false, false, false, false, false, false]
+	var none: Array[bool] = [false, false, false, false, false, false, false, false]
+	Players.bot_inputs[a.device] = {"buttons": none}
+	Players.bot_inputs[b.device] = {"buttons": none}
+	for i in 30:
+		await get_tree().physics_frame
+	Players.bot_inputs[a.device] = {"buttons": a_btn}
+	for i in 60:
+		await get_tree().physics_frame
+	check(_screen_is("controls_screen.gd"), "the flight waits until every player confirms")
+	Players.bot_inputs[b.device] = {"buttons": a_btn}
+	for i in 60:
+		await get_tree().physics_frame
+	check(_screen_is("run.gd"), "all players confirming starts the run")
 	for i in 30:
 		await get_tree().physics_frame
 	Players.clear()
@@ -223,3 +237,8 @@ func _test_autopilot(difficulty: int, level_seed: int) -> void:
 	Scores.entries.pop_back()
 	Scores.save_scores()
 	await get_tree().process_frame
+
+
+func _screen_is(script_file: String) -> bool:
+	return Game._screen != null and is_instance_valid(Game._screen) \
+		and Game._screen.get_script().resource_path.ends_with(script_file)

@@ -20,7 +20,9 @@ so the project has no binary assets yet.
 
 Players run and jump around inside the basket. Walk up to a station and press **A** to take it,
 **B** to leave it free for someone else. Fuel cans and ammo crates sit in the hold at the bottom of the
-basket; pick one up with **A** and carry it to the burner or turret to refill it. Mind the open edges:
+basket; pick one up with **A**, carry it to the burner (fuel) or turret (ammo) and press **A** there to
+refill it. When fuel or ammo runs low, a yellow arrow blinks over the supplies in the hold and another
+points at the station while someone carries a matching item. Mind the open edges:
 jump over a rail and you parachute down until the fisher reels you in or you respawn (and the crew
 loses a little gold).
 
@@ -32,6 +34,10 @@ loses a little gold).
 | 6 | Repair kit | Damage stays until repaired |
 | 7 | Lamp | Night sections with a flashlight cone |
 | 8 | Second propeller | One propeller per side |
+
+After everyone presses Ready in setup, a controls screen lists movement, the unlocked stations and how
+refilling works. Each player presses **A** to confirm they read it (B takes it back); the run starts once
+all players have confirmed.
 
 Players can join (press any button on a new controller) and leave at any time during a run.
 An unplugged controller's character waves for 10 seconds; plug it back in to keep playing.
@@ -53,6 +59,12 @@ An unplugged controller's character waves for 10 seconds; plug it back in to kee
 At a station: **Burner** hold A (or up) to heat, **Shrinker** hold A (or down) to pull the envelope in
 and drop faster, **Propeller** push left/right, **Turret** aim and hold A, **Fishing rod** aim and press A
 to cast, **Repair kit** hold A, **Lamp** aim.
+
+### Fullscreen
+
+The game starts fullscreen. Toggle with **F11**, **Alt+Enter** or **Cmd+Ctrl+F** (macOS); the choice is
+remembered in `user://settings.cfg`. Launch with `--windowed` to force a window for one session
+(`./BalloonCrew.x86_64 --windowed`, or `open "Balloon Crew.app" --args --windowed` on macOS).
 
 ## Levels, codes and the scoreboard
 
