@@ -1,0 +1,27 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  GODOT_VERSION: 4.5.1
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot
+        run: |
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
+      - name: Import project
+        run: timeout 300 godot --headless --path . --import || true
+      - name: Run tests
+        run: |
+          set -o pipefail
+          timeout 900 godot --headless --fixed-fps 60 --path . res://tests/test_runner.tscn 2>&1 | tee test.log
+          if grep -E "SCRIPT ERROR|Parse Error" test.log; then exit 1; fi

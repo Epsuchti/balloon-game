@@ -6,6 +6,7 @@ extends Node2D
 const OUT_OF_FUEL_GRACE := 12.0
 const RESPAWN_PENALTY := 5
 const NIGHT_COLOR := Color(0.08, 0.08, 0.16)
+const START_SUPPLIES: Array[String] = ["fuel", "fuel", "ammo"]
 
 var level: LevelData
 var terrain: Terrain
@@ -49,6 +50,8 @@ func _ready() -> void:
 	for slot in Players.players:
 		if balloon.crew_for(slot) == null:
 			balloon.spawn_crew(slot, slot.role)
+	for kind in START_SUPPLIES:
+		balloon.add_item(kind)
 
 
 func _exit_tree() -> void:
@@ -231,7 +234,7 @@ func _activate_spawns() -> void:
 		else:
 			# No enemies with fewer than 4 players: their spots hold gold and fuel instead.
 			var pk := Pickup.new()
-			pk.kind = "fuel" if i % 3 == 0 else "gold"
+			pk.kind = "fuel" if i % 5 == 0 else "gold"
 			pk.run = self
 			pk.position = pos
 			pickups.add_child(pk)

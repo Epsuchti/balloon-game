@@ -23,6 +23,8 @@ const LIFT := 120.0
 const DRAG := 0.8
 const THRUST := 50.0
 const RESTITUTION := 0.35
+const SAFE_IMPACT := 28.0     # px/s; slower bumps do no damage
+const IMPACT_DAMAGE := 0.5    # hull per px/s above that
 const MAX_HULL := 100.0
 const TANK := 100.0
 const MAGAZINE := 40
@@ -217,8 +219,8 @@ func _impact(col: KinematicCollision2D, n: Vector2, speed: float, dt: float) -> 
 		else:
 			crashed.emit("Crash landing")
 		return
-	if speed > 22.0:
-		take_damage((speed - 22.0) * 0.7)
+	if speed > SAFE_IMPACT:
+		take_damage((speed - SAFE_IMPACT) * IMPACT_DAMAGE)
 	if speed > 30.0:
 		knock_crew(-n * speed * 1.4 + Vector2(0, -40))
 	if m == Tiles.DIRT:

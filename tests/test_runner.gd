@@ -1,6 +1,6 @@
 extends Node
-## Headless tests. Run with:
-##   godot --headless --path . res://tests/test_runner.tscn
+## Headless tests. Run with (--fixed-fps makes the flights run as fast as possible):
+##   godot --headless --fixed-fps 60 --path . res://tests/test_runner.tscn
 ## Exits with code 1 if any check fails.
 
 var _failures := 0
@@ -16,6 +16,9 @@ func _ready() -> void:
 	_test_scores()
 	await _test_run_smoke(1, 300)
 	await _test_run_smoke(8, 900)
+	await _test_screens()
+	await _test_autopilot(Difficulty.EASY, 777)
+	await _test_autopilot(Difficulty.NORMAL, 777)
 	print("\n%d checks, %d failed" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -157,4 +160,66 @@ func _test_run_smoke(bots: int, frames: int) -> void:
 	check(is_instance_valid(run.balloon), "run survives %d frames with %d bots" % [frames, bots])
 	run.queue_free()
 	Players.clear()
+	await get_tree().process_frame
+
+
+## Walks through every screen, and starts a run from the setup screen with everyone ready.
+func _test_screens() -> void:
+	Game.register_root(self)
+	Game.goto("menu")
+	await get_tree().process_frame
+	Game.goto("scores")
+	await get_tree().process_frame
+	Game.use_random_level()
+	Game.goto("setup")
+	await get_tree().physics_frame
+	var a := Players.add_bot()
+	var b := Players.add_bot()
+	check(a.role == Roles.BURNER and b.role == Roles.SHRINKER, "joining players get the first free stations")
+	for i in 20:
+		await get_tree().physics_frame
+	var start: Array[bool] = [false, false, false, false, false, false, true, false]
+	Players.bot_inputs[a.device] = {"buttons": start}
+	Players.bot_inputs[b.device] = {"buttons": start}
+	for i in 60:
+		await get_tree().physics_frame
+	check(Game._screen != null and Game._screen.get_script().resource_path.ends_with("run.gd"), "everyone ready starts the run")
+	for i in 30:
+		await get_tree().physics_frame
+	Players.clear()
+	Game.goto("menu")
+	await get_tree().process_frame
+	Game._screen.queue_free()
+	await get_tree().process_frame
+
+
+## Three bots fly a whole level and land it (see Autopilot).
+func _test_autopilot(difficulty: int, level_seed: int) -> void:
+	Players.clear()
+	var slots: Array[PlayerSlot] = []
+	for i in 3:
+		var s := Players.add_bot()
+		s.role = i
+		slots.append(s)
+	Game.level_seed = level_seed
+	Game.difficulty = difficulty
+	var run: Node = load("res://scripts/run/run.gd").new()
+	add_child(run)
+	await get_tree().physics_frame
+	var b: Balloon = run.balloon
+	var pilot := Autopilot.new(run, slots)
+	var frames := 0
+	while not run.finished and frames < 60 * 300:
+		frames += 1
+		pilot.step()
+		await get_tree().physics_frame
+	var r: Dictionary = run.result
+	print("autopilot %s: %s after %.0f s, hull %.0f, fuel %.0f (+%d cans), gold %d" % [
+		LevelCode.encode(level_seed, difficulty), r.get("reason", "still flying"), run.elapsed, b.hull, b.fuel,
+		b.count_items("fuel"), run.gold])
+	check(r.get("landed", false), "autopilot lands on %s" % LevelCode.encode(level_seed, difficulty))
+	run.queue_free()
+	Players.clear()
+	Scores.entries.pop_back()
+	Scores.save_scores()
 	await get_tree().process_frame

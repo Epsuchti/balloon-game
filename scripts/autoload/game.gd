@@ -29,6 +29,7 @@ func _ready() -> void:
 	level_seed = random_seed()
 	team_name = random_team_name()
 	get_tree().root.theme = _make_theme()
+	get_tree().root.size_changed.connect(_fit_screen)
 
 
 func register_root(root: Node) -> void:
@@ -41,6 +42,14 @@ func goto(screen: String) -> void:
 		_screen.queue_free()
 	_screen = load(SCREENS[screen]).new()
 	_root.add_child(_screen)
+	_fit_screen()
+
+
+## Menu screens are Controls under a plain Node, so size them to the visible area by hand.
+func _fit_screen() -> void:
+	if _screen is Control and is_instance_valid(_screen):
+		(_screen as Control).position = Vector2.ZERO
+		(_screen as Control).size = get_viewport().get_visible_rect().size
 
 
 func random_seed() -> int:

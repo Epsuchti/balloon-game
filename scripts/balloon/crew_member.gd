@@ -47,10 +47,10 @@ func tick(dt: float) -> void:
 	var input_x := 0.0
 	if not waving:
 		input_x = slot.move.x
-		if slot.just_pressed(PlayerSlot.Btn.A) and not _interact() and on_ground:
+		if slot.just_pressed(PlayerSlot.Btn.A):
 			if slot.move.y > 0.6 and _on_deck():
-				_drop_through = 0.25
-			else:
+				_drop_through = 0.25  # down + A always drops through the deck
+			elif not _interact() and on_ground:
 				vel.y = -JUMP_SPEED
 				on_ground = false
 				Sfx.play("jump", randf_range(0.9, 1.1), -14.0)
