@@ -128,10 +128,12 @@ func _draw_broken(bob: float) -> void:
 		var age := fmod(_t * 0.8 + i / 3.0, 1.0)
 		var p := Vector2(sin(_t * 2.0 + i * 2.1) * 3.0 + (i - 1) * 2.0, -10.0 - age * 16.0)
 		var sz := 2.0 + age * 3.0
-		draw_rect(Rect2(p - Vector2(sz, sz) / 2.0, Vector2(sz, sz)), Color(0.55, 0.55, 0.6, 0.7 * (1.0 - age)))
+		draw_rect(Rect2(p - Vector2(sz, sz) / 2.0, Vector2(sz, sz)), Color(0.8, 0.8, 0.85, 0.8 * (1.0 - age)))
 	var y := -34.0 + bob
-	if int(_t * 4.0) % 2 == 0 or fixing:
-		draw_colored_polygon(PackedVector2Array([Vector2(0, y - 7), Vector2(5, y + 2), Vector2(-5, y + 2)]), Color("ff4030"))
+	if true:
+		var red := Color("ff4030") if int(_t * 4.0) % 2 == 0 or fixing else Color("a02018")
+		draw_colored_polygon(PackedVector2Array([Vector2(0, y - 8), Vector2(6, y + 3), Vector2(-6, y + 3)]), Color("1a1422"))
+		draw_colored_polygon(PackedVector2Array([Vector2(0, y - 7), Vector2(5, y + 2), Vector2(-5, y + 2)]), red)
 		draw_rect(Rect2(-0.5, y - 4, 1, 3), Color.WHITE)
 		draw_rect(Rect2(-0.5, y, 1, 1), Color.WHITE)
 	if fix > 0.0:

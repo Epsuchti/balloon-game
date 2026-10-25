@@ -16,10 +16,7 @@ func _ready() -> void:
 	margin.add_child(panel)
 	var box := VBoxContainer.new()
 	panel.add_child(box)
-	var head := Label.new()
-	head.text = "Scoreboard"
-	head.add_theme_font_size_override("font_size", 20)
-	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var head := UiKit.title("SCOREBOARD", 16)
 	box.add_child(head)
 	box.add_child(_row(COLS.map(func(c: Array) -> String: return c[0]), Color("c0c0d0")))
 	var scroll := ScrollContainer.new()

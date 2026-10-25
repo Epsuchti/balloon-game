@@ -2,26 +2,15 @@ extends Control
 ## Shown after everyone is ready: how to move, what each station does and how to refill fuel and
 ## ammo. Every player presses A to confirm they've got it (B to take it back); then the flight starts.
 
-const GAMEPAD := [
-	["Move", "Left stick / D-pad"],
-	["Jump", "A"],
-	["Take a station", "Walk up to it, A"],
-	["Leave a station", "B"],
-	["Pick up / use item", "A"],
-	["Drop item", "B"],
-	["Shove a boarder", "X"],
-	["Drop through deck", "Down + A"],
-	["Pause", "Start"],
-]
 const STATIONS := [
-	"Burner: hold A (or up) to heat the balloon and climb. Uses fuel.",
-	"Shrinker: hold A (or down) to pull the balloon in and sink faster.",
-	"Propeller: push left / right to fly sideways.",
-	"Shooter turret: aim with the stick, hold A to fire. Uses ammo.",
-	"Fishing rod: aim, A to cast. Hooks falling loot and crewmates who fell out.",
-	"Repair kit: hold A to patch the balloon.",
-	"Lamp: aim the light with the stick when it gets dark.",
-	"Second propeller: push left / right, works with the first one.",
+	"Hold A (or up) to heat and climb. Uses fuel.",
+	"Hold A (or down) to pull the envelope in and sink.",
+	"Push left / right to fly sideways.",
+	"Aim with the stick, hold A to fire. Uses ammo.",
+	"Aim, A to cast. Hooks loot and fallen crewmates.",
+	"Hold A to patch the hull.",
+	"Aim the light at night (7+ players).",
+	"A second propeller on the other side.",
 ]
 
 var _status: Label
@@ -37,86 +26,99 @@ func _ready() -> void:
 	Players.remove_on_disconnect = true
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "right", "top", "bottom"]:
+	for side in ["left", "right"]:
 		margin.add_theme_constant_override("margin_" + side, 10)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_bottom", 6)
 	add_child(margin)
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 6)
 	margin.add_child(root)
-	var title := Label.new()
-	title.text = "How to fly"
-	title.add_theme_font_size_override("font_size", 20)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	root.add_child(title)
+	root.add_child(UiKit.title("HOW TO FLY", 16))
 
 	var cols := HBoxContainer.new()
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	cols.add_theme_constant_override("separation", 6)
 	root.add_child(cols)
 
-	var move := _column(cols, "Moving around")
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 8)
-	move.add_child(grid)
-	for row: Array in GAMEPAD:
-		_text(grid, row[0], 9, Color("c0c0d0"))
-		_text(grid, row[1], 9, Color("ffe060"))
-	_text(move, "Keyboard 1: WASD to move, Space = A, Q = B, E = X, Tab = Start", 8, Color("c0c0d0"), true)
-	_text(move, "Keyboard 2: arrows to move, . = A, / = B, , = X, Enter = Start", 8, Color("c0c0d0"), true)
-	_text(move, "Careful: the basket has open sides. Jump over a rail and you fall out!", 8, Color("ff9070"), true)
+	var move := UiKit.card(cols, "MOVING AROUND", Color("6ec3f0"))
+	UiKit.row(move, ["stick", "dpad"], "Walk around the basket")
+	UiKit.row(move, ["A"], "Jump, take a station, pick up and use items")
+	UiKit.row(move, ["B"], "Leave the station, drop what you carry")
+	UiKit.row(move, ["X"], "Shove a boarder overboard")
+	UiKit.row(move, ["dpad", "+", "A"], "Drop down through the deck")
+	UiKit.row(move, ["Start"], "Pause")
+	move.add_child(HSeparator.new())
+	_keys(move, "Keys 1", [["WASD", "move"], ["Space", "A"], ["Q", "B"], ["E", "X"]])
+	_keys(move, "Keys 2", [["Arrows", "move"], [".", "A"], ["/", "B"], [",", "X"]])
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	move.add_child(spacer)
+	move.add_child(UiKit.label("Open sides! Jump over a rail and you fall out.", 9, Color("ff9070"), true))
 
-	var st := _column(cols, "Stations")
-	var count := Roles.station_count(Players.players.size())
-	for r in count:
-		_text(st, STATIONS[r], 8, Color.WHITE, true)
-	if count < Roles.COUNT:
-		_text(st, "More stations unfold as more players join, even mid-flight.", 8, Color("c0c0d0"), true)
+	var st := UiKit.card(cols, "STATIONS", Color("f08838"))
+	st.get_parent().get_parent().get_parent().size_flags_stretch_ratio = 1.15
+	st.add_theme_constant_override("separation", 0)
+	for r in Roles.COUNT:
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 4)
+		var icon := UiKit.StationIcon.new(r)
+		h.add_child(icon)
+		var text := VBoxContainer.new()
+		text.add_theme_constant_override("separation", -3)
+		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		text.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		text.add_child(UiKit.label(Roles.NAMES[r], 9, UiKit.GOLD))
+		text.add_child(UiKit.label(STATIONS[r], 8, UiKit.MUTED, true))
+		h.add_child(text)
+		st.add_child(h)
 
-	var sup := _column(cols, "Fuel, ammo and winning")
-	for line: String in [
-		"The burner runs on fuel (and the turret on ammo). When they run low, refill them:",
-		"1. Walk to the hold, the crate at the bottom middle of the basket.",
-		"2. Press A on a fuel can or ammo crate to pick it up.",
-		"3. Carry it to the burner (fuel) or turret (ammo). An arrow shows where.",
-		"4. Press A there to pour it in.",
-		"Fly through pickups to collect gold, fuel and ammo.",
-		"Land softly on the platform with the flag at the end. Gold only counts if you land!",
-	]:
-		_text(sup, line, 8, Color.WHITE, true)
+	var sup := UiKit.card(cols, "KEEP HER FLYING", Color("80d070"))
+	sup.add_theme_constant_override("separation", 8)
+	var items := HBoxContainer.new()
+	items.add_theme_constant_override("separation", -4)
+	items.add_child(UiKit.ItemIcon.new("fuel"))
+	items.add_child(UiKit.ItemIcon.new("ammo"))
+	_tip(sup, items, "Fuel cans and ammo crates wait in the hold. Press A to pick one up, carry it to the burner (fuel) or turret (ammo) and press A again. Arrows show the way.")
+	_tip(sup, Warn.new(), "Smoke and a red ! mean a station broke. Take it and hold A until it's fixed.")
+	_tip(sup, UiKit.StationIcon.new(Roles.REPAIR), "The balloon never heals by itself. Patch it at the repair kit.")
+	_tip(sup, BossIcon.new(), "Beware the Grumpus! Man the turret and shoot it down for gold.")
+	_tip(sup, UiKit.ItemIcon.new("gold"), "Land softly on the flag platform. Gold only counts if you land!")
 
 	_chips = HBoxContainer.new()
 	_chips.alignment = BoxContainer.ALIGNMENT_CENTER
-	_chips.add_theme_constant_override("separation", 4)
+	_chips.add_theme_constant_override("separation", 6)
 	root.add_child(_chips)
-	_status = Label.new()
+	_status = UiKit.label("", 10, UiKit.CREAM)
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_status.add_theme_font_size_override("font_size", 11)
+	_status.add_theme_constant_override("outline_size", 3)
 	root.add_child(_status)
 
 
-func _column(parent: Container, heading: String) -> VBoxContainer:
-	var panel := PanelContainer.new()
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	parent.add_child(panel)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 3)
-	panel.add_child(box)
-	_text(box, heading, 11, Color("f0c040"))
-	return box
+## A line of keycaps with what each one does.
+func _keys(parent: Container, heading: String, keys: Array) -> void:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 2)
+	var l := UiKit.label(heading, 8, UiKit.MUTED)
+	l.custom_minimum_size = Vector2(30, 0)
+	h.add_child(l)
+	for k: Array in keys:
+		h.add_child(UiKit.Glyph.new("key:" + k[0]))
+		h.add_child(UiKit.label(k[1] + " ", 8, UiKit.CREAM))
+	parent.add_child(h)
 
 
-func _text(parent: Container, text: String, font_size: int, color: Color, wrap := false) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", font_size)
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_constant_override("outline_size", 2)
-	if wrap:
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.custom_minimum_size = Vector2(150, 0)
-	parent.add_child(l)
-	return l
+func _tip(parent: Container, icon: Control, text: String) -> void:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 5)
+	var holder := CenterContainer.new()
+	holder.custom_minimum_size = Vector2(34, 0)
+	holder.add_child(icon)
+	h.add_child(holder)
+	var l := UiKit.label(text, 8, UiKit.CREAM, true)
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(l)
+	parent.add_child(h)
 
 
 func _exit_tree() -> void:
@@ -132,10 +134,10 @@ func _physics_process(dt: float) -> void:
 			break
 		if slot.just_pressed(PlayerSlot.Btn.A) and not _confirmed.has(slot.id):
 			_confirmed[slot.id] = true
-			Sfx.play("tick", 1.5)
+			Sfx.play("confirm")
 		elif slot.just_pressed(PlayerSlot.Btn.B) and _confirmed.has(slot.id):
 			_confirmed.erase(slot.id)
-			Sfx.play("tick", 0.9)
+			Sfx.play("leave")
 	_refresh_chips()
 	var waiting := 0
 	for slot in Players.players:
@@ -157,19 +159,68 @@ func _refresh_chips() -> void:
 		for c in _chips.get_children():
 			c.queue_free()
 		for slot in Players.players:
-			var l := Label.new()
-			l.add_theme_font_size_override("font_size", 10)
-			l.set_meta("slot", slot)
-			_chips.add_child(l)
-	for l: Label in _chips.get_children():
-		if l.is_queued_for_deletion() or not l.has_meta("slot"):
-			continue
-		var slot: PlayerSlot = l.get_meta("slot")
-		var ok := _confirmed.has(slot.id)
-		l.text = "  %s: %s  " % [slot.label(), "got it" if ok else "press A"]
-		l.add_theme_color_override("font_color", slot.color if ok else Color(0.7, 0.7, 0.75))
+			var chip := Chip.new()
+			chip.slot = slot
+			_chips.add_child(chip)
+	for chip in _chips.get_children():
+		if chip is Chip:
+			chip.ok = _confirmed.has(chip.slot.id)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_ESCAPE:
 		Game.goto("setup")
+
+
+class Chip:
+	extends Control
+	## A player's pill at the bottom: "P1 [A]" blinking until they confirm, then "P1 OK!" in their colour.
+	var slot: PlayerSlot
+	var ok := false
+	var _t := 0.0
+
+	func _ready() -> void:
+		custom_minimum_size = Vector2(54, 16)
+
+	func _process(dt: float) -> void:
+		_t += dt
+		queue_redraw()
+
+	func _draw() -> void:
+		var font := UiKit.body_font()
+		var r := Rect2(Vector2(1, 1), size - Vector2(2, 3))
+		draw_rect(Rect2(r.position + Vector2(0, 2), r.size), UiKit.INK)
+		draw_rect(r, slot.color if ok else Color(0.16, 0.12, 0.22))
+		draw_rect(r, slot.color, false, 1.0)
+		var col := UiKit.INK if ok else UiKit.CREAM
+		draw_string(font, Vector2(6, 12), slot.label(), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, col)
+		if ok:
+			draw_string(font, Vector2(size.x - 24, 12), "OK!", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, col)
+		elif int(_t * 2.5) % 2 == 0:
+			var c := Vector2(size.x - 12, size.y / 2.0 - 0.5)
+			draw_circle(c + Vector2(0, 1), 5.0, UiKit.INK)
+			draw_circle(c, 5.0, UiKit.BUTTON_COLORS["A"])
+			draw_string(font, c + Vector2(-2.5, 3), "A", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, UiKit.INK)
+
+
+class Warn:
+	extends Control
+	## The red warning sign a broken station shows.
+	func _init() -> void:
+		custom_minimum_size = Vector2(14, 14)
+
+	func _draw() -> void:
+		draw_colored_polygon(PackedVector2Array([Vector2(7, 1), Vector2(13, 12), Vector2(1, 12)]), Color("ff4030"))
+		draw_rect(Rect2(6.5, 4, 1, 4), Color.WHITE)
+		draw_rect(Rect2(6.5, 9, 1, 1), Color.WHITE)
+
+
+class BossIcon:
+	extends Control
+	## A small Grumpus.
+	func _init() -> void:
+		custom_minimum_size = Vector2(24, 21)
+
+	func _draw() -> void:
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(0.375, 0.375))
+		draw_texture(Art.boss_frames()[0], Vector2.ZERO)

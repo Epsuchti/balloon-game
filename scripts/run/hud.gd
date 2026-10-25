@@ -29,8 +29,10 @@ func _ready() -> void:
 	_root.add_child(_bars)
 	_msg = _label(12, HORIZONTAL_ALIGNMENT_CENTER)
 	_msg.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	_msg.position = Vector2(-230, 56)
-	_msg.size = Vector2(460, 40)
+	_msg.offset_left = -230
+	_msg.offset_right = 230
+	_msg.offset_top = 56
+	_msg.offset_bottom = 96
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_warn = _label(16, HORIZONTAL_ALIGNMENT_CENTER)
 	_warn.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
@@ -154,10 +156,7 @@ func _panel(title: String) -> PanelContainer:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
 	panel.add_child(box)
-	var head := Label.new()
-	head.text = title
-	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	head.add_theme_font_size_override("font_size", 20)
+	var head := UiKit.title(title.to_upper(), 14)
 	box.add_child(head)
 	panel.tree_exiting.connect(center.queue_free)
 	return panel

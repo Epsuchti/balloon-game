@@ -33,7 +33,10 @@ func _ready() -> void:
 	randomize()
 	level_seed = random_seed()
 	team_name = random_team_name()
-	get_tree().root.theme = _make_theme()
+	# Screens sit under plain Nodes, which stop theme inheritance, so restyle the default theme.
+	ThemeDB.fallback_font = UiKit.body_font()
+	ThemeDB.get_default_theme().merge_with(_make_theme())
+	ThemeDB.get_default_theme().default_font = UiKit.body_font()
 	get_tree().node_added.connect(_on_node_added)
 	get_tree().root.size_changed.connect(_fit_screen)
 	_settings.load(SETTINGS_PATH)
@@ -124,38 +127,56 @@ func use_random_level() -> void:
 
 func _make_theme() -> Theme:
 	var theme := Theme.new()
+	theme.default_font = UiKit.body_font()
 	theme.default_font_size = 10
-	var normal := _box(Color("2b2238"), Color("5c4a78"))
-	var hover := _box(Color("3d3052"), Color("f0c040"))
-	var pressed := _box(Color("f0c040"), Color("f0c040"))
-	var focus := _box(Color(0, 0, 0, 0), Color("f0c040"))
+	var normal := _box(Color("3b2d52"), UiKit.INK)
+	var hover := _box(Color("4e3d6b"), UiKit.GOLD)
+	var pressed := _box(UiKit.GOLD, UiKit.INK)
+	pressed.border_width_bottom = 2
+	pressed.content_margin_top = 6
+	var focus := _box(Color(0, 0, 0, 0), UiKit.GOLD)
 	focus.draw_center = false
+	focus.shadow_size = 0
 	for t in ["Button"]:
 		theme.set_stylebox("normal", t, normal)
 		theme.set_stylebox("hover", t, hover)
 		theme.set_stylebox("pressed", t, pressed)
 		theme.set_stylebox("focus", t, focus)
 		theme.set_stylebox("disabled", t, _box(Color("1c1626"), Color("3a3048")))
-		theme.set_color("font_color", t, Color("f3e9d2"))
+		theme.set_color("font_color", t, UiKit.CREAM)
 		theme.set_color("font_hover_color", t, Color.WHITE)
-		theme.set_color("font_pressed_color", t, Color("2b2238"))
+		theme.set_color("font_pressed_color", t, UiKit.INK)
 		theme.set_color("font_focus_color", t, Color.WHITE)
-	theme.set_stylebox("panel", "PanelContainer", _box(Color(0.1, 0.08, 0.14, 0.88), Color("5c4a78")))
-	theme.set_stylebox("panel", "Panel", _box(Color(0.1, 0.08, 0.14, 0.88), Color("5c4a78")))
-	theme.set_stylebox("normal", "LineEdit", _box(Color("1c1626"), Color("5c4a78")))
-	theme.set_stylebox("focus", "LineEdit", _box(Color("1c1626"), Color("f0c040")))
-	theme.set_color("font_color", "Label", Color("f3e9d2"))
-	theme.set_color("font_outline_color", "Label", Color("1a1422"))
+		theme.set_color("font_hover_pressed_color", t, UiKit.INK)
+		theme.set_font_size("font_size", t, 11)
+	var panel := _box(Color(0.11, 0.08, 0.16, 0.92), UiKit.INK)
+	panel.content_margin_left = 8
+	panel.content_margin_right = 8
+	panel.content_margin_top = 6
+	panel.content_margin_bottom = 6
+	theme.set_stylebox("panel", "PanelContainer", panel)
+	theme.set_stylebox("panel", "Panel", panel)
+	theme.set_stylebox("normal", "LineEdit", _box(Color("1c1626"), UiKit.INK))
+	theme.set_stylebox("focus", "LineEdit", _box(Color("1c1626"), UiKit.GOLD))
+	theme.set_color("font_color", "LineEdit", UiKit.CREAM)
+	theme.set_color("font_color", "Label", UiKit.CREAM)
+	theme.set_color("font_outline_color", "Label", UiKit.INK)
 	theme.set_constant("outline_size", "Label", 3)
 	return theme
 
 
+## Chunky pixel box: square corners, a dark outline and a thicker bottom edge.
 func _box(bg: Color, border: Color) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = bg
-	s.border_color = border
-	s.set_border_width_all(1)
-	s.set_content_margin_all(4)
-	s.content_margin_left = 8
-	s.content_margin_right = 8
-	return s
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border
+	sb.set_border_width_all(2)
+	sb.border_width_bottom = 4
+	sb.content_margin_left = 10
+	sb.content_margin_right = 10
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	sb.shadow_color = Color(0, 0, 0, 0.3)
+	sb.shadow_offset = Vector2(2, 2)
+	sb.shadow_size = 1
+	return sb

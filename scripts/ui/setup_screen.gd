@@ -33,10 +33,7 @@ func _ready() -> void:
 	top.offset_right = -12
 	top.offset_top = 8
 	add_child(top)
-	var title := Label.new()
-	title.text = "Join the crew!"
-	title.add_theme_font_size_override("font_size", 22)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var title := UiKit.title("JOIN THE CREW!", 18)
 	top.add_child(title)
 	var team_row := HBoxContainer.new()
 	team_row.alignment = BoxContainer.ALIGNMENT_CENTER
