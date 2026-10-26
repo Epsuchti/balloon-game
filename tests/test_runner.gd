@@ -372,6 +372,15 @@ func _test_fans_and_kits() -> void:
 	for i in 60:
 		await get_tree().physics_frame
 	check(b.hull > hull + 5.0 and b.patches < Balloon.MAX_PATCHES, "patching uses up the kits")
+	var resting := 0
+	var level_pickups: Array[Node] = run.pickups.get_children()
+	for p: Pickup in level_pickups:
+		var on_ground: bool = not p.on_ceiling and run.terrain.is_solid_at(p.global_position + Vector2(0, 6))
+		var stuck: bool = p.on_ceiling and run.terrain.is_solid_at(p.global_position - Vector2(0, 6))
+		if on_ground or stuck:
+			resting += 1
+	check(level_pickups.size() > 0 and resting == level_pickups.size(),
+			"every pickup lies on the ground or sticks to the ceiling (%d of %d)" % [resting, level_pickups.size()])
 	var pk := Pickup.new()
 	pk.kind = "kit"
 	pk.run = run
@@ -431,7 +440,7 @@ func _test_screens() -> void:
 	await get_tree().process_frame
 
 
-## Three bots fly a whole level and land it (see Autopilot). Breakdowns and enemy moves are random,
+## Four bots fly a whole level and land it (see Autopilot). Breakdowns and enemy moves are random,
 ## so a crew of bots gets a second try before the check fails.
 func _test_autopilot(difficulty: int, level_seed: int) -> void:
 	if not await _fly_autopilot(difficulty, level_seed, false):
@@ -441,9 +450,9 @@ func _test_autopilot(difficulty: int, level_seed: int) -> void:
 func _fly_autopilot(difficulty: int, level_seed: int, last_try: bool) -> bool:
 	Players.clear()
 	var slots: Array[PlayerSlot] = []
-	for i in 3:
+	for role in [Roles.BURNER, Roles.SHRINKER, Roles.PROPELLER, Roles.FISHING]:
 		var s := Players.add_bot()
-		s.role = i
+		s.role = role
 		slots.append(s)
 	Game.level_seed = level_seed
 	Game.difficulty = difficulty
@@ -453,7 +462,7 @@ func _fly_autopilot(difficulty: int, level_seed: int, last_try: bool) -> bool:
 	var b: Balloon = run.balloon
 	var pilot := Autopilot.new(run, slots)
 	var frames := 0
-	while not run.finished and frames < 60 * 300:
+	while not run.finished and frames < 60 * 400:
 		frames += 1
 		pilot.step()
 		await get_tree().physics_frame

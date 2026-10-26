@@ -1,12 +1,14 @@
 class_name Autopilot
 extends RefCounted
-## A three-bot crew that flies a level: the burner holds the tunnel's height, the propeller pushes
-## on, and the shrinker doubles as the runner: it fetches fuel cans from the hold when the tank runs
+## A four-bot crew that flies a level: the burner holds the tunnel's height, the propeller pushes
+## on, the fisher hooks the supplies lying on the ground or stuck to the ceiling, and the
+## shrinker doubles as the runner: it fetches fuel cans from the hold when the tank runs
 ## low (and repair kits when the repair station runs out), fixes stations nobody mans, patches the hull at the repair kit and shoves boarders overboard.
 ## Used by the tests to prove a level can be finished and landed.
 
 var run: Node
-var slots: Array[PlayerSlot] = []   # burner, shrinker, propeller
+var slots: Array[PlayerSlot] = []   # burner, shrinker, propeller, fisher
+var _tries := {}   # pickup -> casts at it, so one behind a rock isn't tried forever
 var _runner := "man"
 var _fetch := "fuel"   # what the "fuel" job fetches from the hold: fuel or a repair kit
 var _target: Station
@@ -32,6 +34,8 @@ func step() -> void:
 		push = clampf(dx / 80.0, -1.0, 1.0) - b.velocity.x / 60.0
 		if absf(dx) < 40.0:
 			target_y = plat.position.y + 80.0  # aim below the platform so it settles down
+	if absf(dx) >= 260.0 and slots.size() > 3:
+		target_y = _fishing_height(c, target_y)
 	var err := c.y - target_y
 	if absf(dx) >= 260.0 and absf(err) > 40.0:
 		push = 0.35  # wait for the burner to catch up before pressing on
@@ -40,6 +44,53 @@ func step() -> void:
 	_man(b, slots[0], Roles.BURNER, Vector2.ZERO, burn)
 	_man(b, slots[2], Roles.PROPELLER, Vector2(clampf(push, -1.0, 1.0), 0), false)
 	_run_shrinker(b, shrink)
+	if slots.size() > 3:
+		_fish(b, slots[3])
+
+
+## Height to fly at so the fisher can reach the next supply ahead that lies too far below or above
+## the way through; target_y (the tunnel's middle) when there is none.
+func _fishing_height(c: Vector2, target_y: float) -> float:
+	for p: Pickup in run.pickups.get_children():
+		if p.kind == "gold" or p.hooked or _tries.get(p, 0) >= 2:
+			continue
+		var ahead := p.global_position.x - c.x
+		if ahead < -30.0 or ahead > 260.0 or absf(p.global_position.y - target_y) < 170.0:
+			continue
+		return p.global_position.y + (190.0 if p.on_ceiling else -130.0)
+	return target_y
+
+
+## The fisher: casts at the nearest pickup in reach, fuel first, then repair kits and ammo.
+func _fish(b: Balloon, slot: PlayerSlot) -> void:
+	var me := b.crew_for(slot)
+	var st: FishingRod = b.stations[Roles.FISHING]
+	if me == null or me.station != st or st.broken or st.state != FishingRod.State.IDLE:
+		_man(b, slot, Roles.FISHING, Vector2.ZERO, false)
+		return
+	var tip := st.tip()
+	var best: Pickup = null
+	var best_score := INF
+	for p: Pickup in run.pickups.get_children():
+		var d := p.global_position.distance_to(tip)
+		if p.hooked or d > FishingRod.LINE_MAX * 0.9 or _tries.get(p, 0) >= 2:
+			continue
+		var want := {"fuel": 400.0, "kit": 200.0, "ammo": 100.0}
+		if b.hull < 60.0 and b.patches + b.count_items("kit") * Balloon.KIT_PATCH < 40.0:
+			want["kit"] = 600.0  # the hull needs kits more than the tank needs fuel
+		var score: float = d - want.get(p.kind, 0.0)
+		if score < best_score:
+			best = p
+			best_score = score
+	if best == null:
+		_input_for(slot, Vector2.ZERO, false, false)
+		return
+	var aim := (best.global_position - tip).normalized()
+	var cast := _tick % 2 == 0
+	if cast:
+		_tries[best] = _tries.get(best, 0) + 1
+	var buttons: Array[bool] = [cast, false, false, false, false, false, false, false]
+	Players.bot_inputs[slot.device] = {"move": Vector2.ZERO, "aim": aim, "buttons": buttons}
 
 
 ## A bot that stays at its station: fixes it when it breaks and takes it back after a boarder leaves.

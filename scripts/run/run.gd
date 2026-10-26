@@ -93,11 +93,7 @@ func _build_world() -> void:
 
 	pickups = _layer("Pickups")
 	for p: Dictionary in level.pickups:
-		var pk := Pickup.new()
-		pk.kind = p["kind"]
-		pk.run = self
-		pk.position = p["pos"]
-		pickups.add_child(pk)
+		place_pickup(p["kind"], p["pos"])
 	_spawned.resize(level.spawns.size())
 	if has_boss(level.level_seed):
 		var s := level.segments[int(level.segments.size() * 0.55)]
@@ -379,11 +375,41 @@ func _activate_spawns() -> void:
 			spawn_enemy(sp["kind"], pos)
 			Sfx.play({"bat": "screech", "harpy": "caw", "goblin": "cackle", "bomber": "beep"}[sp["kind"]], 1.0, -10.0)
 		elif i % 3 == 0:
-			var pk := Pickup.new()
-			pk.kind = "gold"
-			pk.run = self
-			pk.position = pos
-			pickups.add_child(pk)
+			place_pickup("gold", pos)
+
+
+## Puts a pickup into the level, lying on the ground or stuck to the ceiling right above or below
+## where the generator put it, so the crew has to steer close and fish it in. Which of the two is
+## decided by the spot, so replays match; a surface the rod can't reach from the way through loses
+## to one it can.
+func place_pickup(kind: String, pos: Vector2) -> Pickup:
+	const REACH := 200.0
+	var pk := Pickup.new()
+	pk.kind = kind
+	pk.run = self
+	var down := _surface(pos, 1.0)
+	var up := _surface(pos, -1.0)
+	var prefer_up := hash(Vector2i(roundi(pos.x), roundi(pos.y))) % 2 == 0
+	var use_up := up >= 0.0 and (down < 0.0 or (prefer_up and up <= REACH) or (down > REACH and up < down))
+	if use_up:
+		pk.on_ceiling = true
+		pk.position = pos + Vector2(0, -up + 4.0)
+	elif down >= 0.0:
+		pk.position = pos + Vector2(0, down - 4.0)
+	else:
+		pk.position = pos
+	pickups.add_child(pk)
+	return pk
+
+
+## Distance from pos to the first solid tile straight down (dir 1) or up (dir -1), or -1 if none.
+func _surface(pos: Vector2, dir: float) -> float:
+	var d := 0.0
+	while d < 600.0:
+		if terrain.is_solid_at(pos + Vector2(0, d * dir)):
+			return d
+		d += 2.0
+	return -1.0
 
 
 func wind_at(pos: Vector2) -> Vector2:
