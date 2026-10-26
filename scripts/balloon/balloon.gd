@@ -93,6 +93,7 @@ var boarders: Array[Boarder] = []
 
 var _envelope_shape: CircleShape2D
 var _envelope_box: CollisionShape2D
+var _basket_box: CollisionShape2D
 var _front: Node2D
 var _glow: PointLight2D
 var _lamp: PointLight2D
@@ -105,6 +106,7 @@ func _ready() -> void:
 	collision_mask = 1
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	var box := CollisionShape2D.new()
+	_basket_box = box
 	var rect := RectangleShape2D.new()
 	rect.size = BASKET.size * SCALE
 	box.shape = rect
@@ -225,8 +227,8 @@ func set_night(amount: float) -> void:
 
 func _physics_process(dt: float) -> void:
 	_time += dt
-	_smoke.emitting = not exploded and hull < MAX_HULL * 0.6
-	_black_smoke.emitting = not exploded and (hull < MAX_HULL * 0.3 or wrecking)
+	_smoke.emitting = not wrecking and hull < MAX_HULL * 0.6
+	_black_smoke.emitting = hull < MAX_HULL * 0.3 or wrecking  # the wreck keeps smoking
 	if wrecking:
 		_wreck(dt)
 		queue_redraw()
@@ -324,16 +326,33 @@ func start_wreck() -> void:
 	_wreck_t = 0.0
 	for st in stations:
 		st.on_leave()
+	_envelope_box.set_deferred("disabled", true)  # the limp envelope can't hold us off the ground
+	# Rest on the basket's floor boards, not on the margin below them that keeps flights forgiving.
+	var wreck_rect := Rect2(BASKET.position.x, BASKET.position.y, BASKET.size.x, FLOOR_Y + 2.0 - BASKET.position.y)
+	_basket_box.set_deferred("position", wreck_rect.get_center() * SCALE)
+	var shape := RectangleShape2D.new()
+	shape.size = wreck_rect.size * SCALE
+	_basket_box.set_deferred("shape", shape)
 	Sfx.play("fall", 0.6, -4.0)
 
 
 func _wreck(dt: float) -> void:
 	if exploded:
+		# The charred wreck settles into whatever the blast left of the ground.
+		velocity.y += GRAVITY * 2.0 * dt
+		if move_and_collide(velocity * dt) != null:
+			velocity = Vector2.ZERO
 		return
 	_wreck_t += dt
-	_deflate = minf(1.0, _deflate + dt / 1.2)
-	envelope_size = lerpf(1.0, 0.6, _deflate)
+	_deflate = minf(1.0, _deflate + dt / 1.6)
+	envelope_size = 1.0
 	heat = 0.0
+	# The collapsing envelope sheds scraps of fabric as it tears.
+	if run != null and _deflate < 0.95 and randf() < dt * 7.0:
+		var a := randf() * TAU
+		var at := world_of(ENVELOPE_CENTER + Vector2(cos(a) * 30.0, sin(a) * 18.0 + 20.0 * _deflate))
+		var out := Vector2(cos(a), sin(a) - 0.5) * randf_range(30.0, 70.0)
+		run.spawn_scrap(at, out + velocity * 0.5, Color("d94a3a") if randf() < 0.65 else Color("f3e3c3"), Vector2(3, 2))
 	velocity.y += GRAVITY * (1.0 + 3.0 * _deflate) * dt
 	velocity.x *= 1.0 - 0.8 * dt
 	var col := move_and_collide(velocity * dt)
@@ -345,10 +364,27 @@ func _wreck(dt: float) -> void:
 
 func _explode() -> void:
 	exploded = true
+	_deflate = 1.0
 	velocity = Vector2.ZERO
-	rig.visible = false
+	# The crew are thrown clear; what's left of the balloon stays where it fell, burnt and smoking.
+	for c in crew:
+		c.visible = false
+	for b in boarders:
+		b.visible = false
+	for it in items:
+		it.visible = false
+	rig.modulate = Color(0.35, 0.3, 0.3)
 	if run != null:
-		run.big_explosion(world_of(Vector2(0, 0)))
+		var at := world_of(Vector2(0, 0))
+		run.big_explosion(at)
+		for i in 10:
+			var v := Vector2.from_angle(randf_range(-PI * 0.9, -PI * 0.1)) * randf_range(80.0, 180.0)
+			run.spawn_scrap(at + Vector2(randf_range(-20, 20), randf_range(-8, 4)), v,
+					Color("8a5a34") if i % 2 == 0 else Color("5a3a20"), Vector2(6, 2))
+		for i in 8:
+			var v := Vector2.from_angle(randf_range(-PI, 0.0)) * randf_range(50.0, 140.0)
+			run.spawn_scrap(world_of(ENVELOPE_CENTER + Vector2(randf_range(-30, 30), 40)), v,
+					Color("d94a3a") if i % 3 else Color("f3e3c3"), Vector2(3, 2))
 	Sfx.play("crash")
 	wreck_exploded.emit()
 
@@ -499,20 +535,21 @@ func shove_boarder(b: Boarder, dir: Vector2) -> void:
 # --- Drawing ---
 
 func _draw() -> void:
-	if exploded:
-		return
 	var bottom := ENVELOPE_CENTER.y + ENVELOPE_RADII.y
 	var tex := Art.envelope_texture(envelope_size)
 	var size := tex.get_size()
-	var flash := Color(1, 0.5, 0.5) if hit_flash > 0.0 else Color.WHITE
+	var flash := Color(1, 0.5, 0.5) if hit_flash > 0.0 and not wrecking else Color.WHITE
 	var wear_tint := lerpf(1.0, 0.7, clampf(1.0 - hull / MAX_HULL, 0.0, 1.0))
 	flash = flash * Color(wear_tint, wear_tint, wear_tint)
-	# Deflating: the envelope sags down onto its mouth and flaps.
-	var squash := 1.0 - 0.75 * _deflate
-	var flap := sin(_time * 18.0) * 0.06 * _deflate
-	draw_set_transform(Vector2(0, bottom * SCALE), flap, Vector2(SCALE * (1.0 + 0.25 * _deflate), SCALE * squash))
-	draw_texture(tex, Vector2(-floorf(size.x / 2.0), -size.y + 2.0), flash)
-	_draw_tears(size, bottom)
+	if exploded:
+		flash = Color(0.3, 0.26, 0.26)
+	if _deflate > 0.0:
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(SCALE, SCALE))
+		_draw_collapsing(tex, bottom, flash)
+	else:
+		draw_set_transform(Vector2(0, bottom * SCALE), 0.0, Vector2(SCALE, SCALE))
+		draw_texture(tex, Vector2(-floorf(size.x / 2.0), -size.y + 2.0), flash)
+		_draw_tears(size, bottom)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(SCALE, SCALE))
 	var rope := Color("5a4630")
 	var mouth := bottom - 1.0
@@ -527,6 +564,40 @@ func _draw() -> void:
 		var cx := -8.0 + (i % 7) * 2.5
 		var cy := FLOOR_Y - 2.0 - int(i / 7) * 2.0
 		draw_rect(Rect2(cx, cy, 2, 2), Color("f0c030"))
+
+
+## The deflating envelope as a sheet of cloth: the crown falls in onto the mouth, the sides
+## billow out and droop over the ropes, and the loose fabric ripples until it lies still.
+func _draw_collapsing(tex: Texture2D, bottom: float, tint: Color) -> void:
+	const N := 8
+	var size := tex.get_size()
+	var d := _deflate
+	var k := d * d * (3.0 - 2.0 * d)
+	var still := 0.0 if exploded else 1.0
+	var pts := []
+	for j in N + 1:
+		var v := float(j) / N  # 0 at the crown, 1 at the mouth
+		var row := []
+		for i in N + 1:
+			var u := float(i) / N
+			var p := Vector2((u - 0.5) * size.x, bottom + 2.0 - size.y * (1.0 - v))
+			p.y += (1.0 - v) * size.y * 0.78 * k
+			p.x += (u - 0.5) * size.x * 0.45 * k * (0.4 + v * 0.6)
+			p.y += pow(absf(u - 0.5) * 2.0, 2.0) * 22.0 * k * v
+			var wave := k * (1.0 - v) * still
+			p.y += sin(_time * 11.0 + u * 7.0) * 3.0 * wave
+			p.x += sin(_time * 8.0 + v * 5.0 + u * 3.0) * 2.0 * wave
+			row.append(p)
+		pts.append(row)
+	for j in N:
+		for i in N:
+			var quad := PackedVector2Array([pts[j][i], pts[j][i + 1], pts[j + 1][i + 1], pts[j + 1][i]])
+			var uvs := PackedVector2Array([Vector2(float(i) / N, float(j) / N), Vector2(float(i + 1) / N, float(j) / N),
+					Vector2(float(i + 1) / N, float(j + 1) / N), Vector2(float(i) / N, float(j + 1) / N)])
+			# Folds catch the light unevenly.
+			var shade := 1.0 - k * (0.25 * absf(sin(i * 1.7 + j * 0.9)) + 0.1 * (1.0 - float(j) / N))
+			var c := tint * Color(shade, shade, shade)
+			draw_polygon(quad, PackedColorArray([c, c, c, c]), uvs, tex)
 
 
 ## Rips and patches on the envelope; more of them the more the hull is damaged.

@@ -543,7 +543,7 @@ func explosion(pos: Vector2, radius: float, damage: float) -> void:
 ## The balloon blowing up at the end of a lost run: a fireball, flying planks and scraps of envelope.
 func big_explosion(pos: Vector2) -> void:
 	Sfx.play("boom", 0.5, 0.0)
-	terrain.damage_circle(pos, 44.0, 30.0)
+	terrain.damage_circle(pos, 26.0, 30.0)  # small, so the wreck sits in its crater
 	var ball := Fireball.new()
 	ball.position = pos
 	effects.add_child(ball)
@@ -567,6 +567,61 @@ func big_explosion(pos: Vector2) -> void:
 		p.finished.connect(p.queue_free)
 		effects.add_child(p)
 	shake(12.0)
+
+
+## A loose piece of the balloon: fabric flutters down, planks drop and bounce.
+func spawn_scrap(pos: Vector2, vel: Vector2, color: Color, size: Vector2) -> void:
+	var s := Scrap.new()
+	s.position = pos
+	s.velocity = vel
+	s.color = color
+	s.size = size
+	s.terrain = terrain
+	effects.add_child(s)
+
+
+class Scrap:
+	extends Node2D
+	var velocity := Vector2.ZERO
+	var color := Color.WHITE
+	var size := Vector2(3, 2)
+	var terrain: Terrain
+	var _t := 0.0
+	var _spin := randf_range(-8.0, 8.0)
+	var _life := randf_range(8.0, 9.0)
+	var _resting := false
+
+	func _process(dt: float) -> void:
+		_t += dt
+		if _t > _life:
+			queue_free()
+			return
+		modulate.a = clampf((_life - _t) / 1.0, 0.0, 1.0)
+		if _resting:
+			return
+		var light := size.x <= 4.0
+		if light:
+			velocity.y += 90.0 * dt
+			velocity *= 1.0 - 1.8 * dt
+			position.x += sin(_t * 6.0 + _spin) * 20.0 * dt
+		else:
+			velocity.y += 300.0 * dt
+		var next := position + velocity * dt
+		if terrain != null and terrain.is_solid_at(next + Vector2(0, size.y)):
+			if not light and velocity.y > 60.0:
+				velocity = Vector2(velocity.x * 0.4, -velocity.y * 0.3)
+				_spin *= 0.5
+			else:
+				_resting = true
+				rotation = snappedf(rotation, PI)
+				return
+		else:
+			position = next
+		rotation += _spin * dt * (0.5 if light else 1.0)
+
+	func _draw() -> void:
+		draw_rect(Rect2(-size / 2.0, size), color)
+		draw_rect(Rect2(-size / 2.0, Vector2(size.x, 1)), color.lightened(0.25))
 
 
 class Fireball:
