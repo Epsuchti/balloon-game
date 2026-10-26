@@ -230,7 +230,8 @@ static func _set_pieces(data: LevelData, rng: RandomNumberGenerator) -> void:
 	var n := data.segments.size()
 	var density: float = Difficulty.ENEMY_DENSITY[data.difficulty]
 	var pickup_mult: float = Difficulty.PICKUP_MULT[data.difficulty]
-	# Repair kits get their own random numbers, so adding them left the rest of every level as it was.
+	# The extra supplies (repair kits and the fisher's catches) get their own random numbers, so
+	# adding them left the rest of every level as it was.
 	var kits := RandomNumberGenerator.new()
 	kits.seed = hash(Vector2i(data.level_seed, data.difficulty)) + 4111
 	for s in range(1, n - 1):
@@ -265,12 +266,16 @@ static func _set_pieces(data: LevelData, rng: RandomNumberGenerator) -> void:
 			data.spawns.append({"pos": _air_point(data, rng, x, 0.6), "kind": _enemy_kind(rng, t), "segment": s})
 		for g in rng.randi_range(1, 2):
 			data.pickups.append({"pos": _air_point(data, rng, rng.randi_range(x0, x1), 0.35), "kind": "gold"})
-		# Now and then a repair kit lies on the ground below the way through: dive for it or fish it up.
-		if not seg["breather"] and kits.randf() < 0.5:
+		# Plenty for the fisher: every segment has a few more supplies and coins lying around
+		# (the run puts each on the ground or the ceiling).
+		for i in roundi(kits.randi_range(3, 5) * pickup_mult):
+			var r := kits.randf()
+			var what := "gold" if r < 0.4 else "fuel" if r < 0.58 else "ammo" if r < 0.79 else "kit"
 			var kx := kits.randi_range(x0, x1)
-			var ky := _floor(data, kx, data.path[kx])
-			if ky - data.path[kx] < data.col_half[kx] + 6.0:
-				data.pickups.append({"pos": Vector2((kx + 0.5) * Tiles.SIZE, (ky - 0.6) * Tiles.SIZE), "kind": "kit"})
+			var ky := data.path[kx] + kits.randf_range(-1.0, 1.0) * data.col_half[kx] * 0.5
+			if data.is_solid(kx, int(ky)):
+				ky = data.path[kx]
+			data.pickups.append({"pos": Vector2((kx + 0.5) * Tiles.SIZE, ky * Tiles.SIZE), "kind": what})
 
 
 static func _air_point(data: LevelData, rng: RandomNumberGenerator, x: int, spread: float) -> Vector2:

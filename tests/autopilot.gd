@@ -48,17 +48,29 @@ func step() -> void:
 		_fish(b, slots[3])
 
 
-## Height to fly at so the fisher can reach the next supply ahead that lies too far below or above
-## the way through; target_y (the tunnel's middle) when there is none.
+## Height to fly at so the fisher can reach the next supply ahead the crew is short of that lies too
+## far below or above the way through; target_y (the tunnel's middle) when there is none.
 func _fishing_height(c: Vector2, target_y: float) -> float:
 	for p: Pickup in run.pickups.get_children():
-		if p.kind == "gold" or p.hooked or _tries.get(p, 0) >= 2:
+		if p.hooked or _tries.get(p, 0) >= 2 or not _needs(run.balloon, p.kind):
 			continue
 		var ahead := p.global_position.x - c.x
 		if ahead < -30.0 or ahead > 260.0 or absf(p.global_position.y - target_y) < 170.0:
 			continue
 		return p.global_position.y + (190.0 if p.on_ceiling else -130.0)
 	return target_y
+
+
+## Whether the crew is short enough of this kind of supply to go out of the way for it.
+func _needs(b: Balloon, kind: String) -> bool:
+	match kind:
+		"fuel":
+			return b.fuel + b.count_items("fuel") * Balloon.CAN_FUEL < 70.0
+		"kit":
+			return b.patches + b.count_items("kit") * Balloon.KIT_PATCH < 40.0
+		"ammo":
+			return b.ammo + b.count_items("ammo") * Balloon.CRATE_AMMO < 15
+	return false
 
 
 ## The fisher: casts at the nearest pickup in reach, fuel first, then repair kits and ammo.
