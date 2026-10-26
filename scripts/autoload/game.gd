@@ -1,0 +1,230 @@
+extends Node
+## Game flow: which screen is showing, the settings for the next run, and the UI theme.
+
+const SCREENS := {
+	"menu": "res://scripts/ui/main_menu.gd",
+	"setup": "res://scripts/ui/setup_screen.gd",
+	"controls": "res://scripts/ui/controls_screen.gd",
+	"run": "res://scripts/run/run.gd",
+	"scores": "res://scripts/ui/scoreboard_screen.gd",
+}
+const ADJECTIVES: Array[String] = [
+	"Brave", "Fluffy", "Daring", "Sleepy", "Mighty", "Wobbly", "Lucky", "Sneaky",
+	"Golden", "Breezy", "Happy", "Rusty", "Soaring", "Giddy", "Plucky", "Toasty",
+]
+const ANIMALS: Array[String] = [
+	"Pelicans", "Otters", "Gophers", "Ravens", "Llamas", "Badgers", "Puffins", "Geckos",
+	"Walruses", "Moles", "Herons", "Yaks", "Ferrets", "Newts", "Capybaras", "Owls",
+]
+
+var level_seed := 0
+var difficulty := Difficulty.NORMAL
+var fixed_level := false   # the seed came from a level code or a scoreboard replay
+var team_name := ""
+var _root: Node
+var _screen: Node
+var _settings := ConfigFile.new()
+
+const SETTINGS_PATH := "user://settings.cfg"
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	randomize()
+	level_seed = random_seed()
+	team_name = random_team_name()
+	# Screens sit under plain Nodes, which stop theme inheritance, so restyle the default theme.
+	ThemeDB.fallback_font = UiKit.body_font()
+	ThemeDB.get_default_theme().merge_with(_make_theme())
+	ThemeDB.get_default_theme().default_font = UiKit.body_font()
+	get_tree().node_added.connect(_on_node_added)
+	get_tree().root.size_changed.connect(_fit_screen)
+	_settings.load(SETTINGS_PATH)
+	_take_over_gamepad_ui()
+	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_args().has("--windowed"):
+		_apply_fullscreen(_settings.get_value("display", "fullscreen", true))
+
+
+## F11, Alt+Enter or Cmd+Ctrl+F switch between fullscreen and a window. The choice is remembered.
+func _input(event: InputEvent) -> void:
+	var k := event as InputEventKey
+	if k == null or not k.pressed or k.echo:
+		return
+	var toggle := k.physical_keycode == KEY_F11 \
+		or (k.physical_keycode == KEY_ENTER and k.alt_pressed) \
+		or (k.physical_keycode == KEY_F and k.meta_pressed and k.ctrl_pressed)
+	if toggle:
+		var full := DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED
+		_apply_fullscreen(not full)
+		_settings.set_value("display", "fullscreen", not full)
+		_settings.save(SETTINGS_PATH)
+		get_viewport().set_input_as_handled()
+
+
+const PAD_UI_ACTIONS := ["ui_accept", "ui_cancel", "ui_up", "ui_down", "ui_left", "ui_right"]
+var _pad_prev := {}   # "device:action" -> held last frame
+
+
+## Menus are driven by every gamepad the same way (A selects, B goes back, D-pad or left stick
+## moves), polled here instead of relying on the default joypad bindings, which vary by platform.
+func _take_over_gamepad_ui() -> void:
+	for action: String in ["ui_accept", "ui_select", "ui_cancel", "ui_up", "ui_down", "ui_left", "ui_right",
+			"ui_focus_next", "ui_focus_prev"]:
+		for ev in InputMap.action_get_events(action):
+			if ev is InputEventJoypadButton or ev is InputEventJoypadMotion:
+				InputMap.action_erase_event(action, ev)
+
+
+func _process(_dt: float) -> void:
+	for d in Input.get_connected_joypads():
+		var lx := Input.get_joy_axis(d, JOY_AXIS_LEFT_X)
+		var ly := Input.get_joy_axis(d, JOY_AXIS_LEFT_Y)
+		var held := {
+			"ui_accept": Input.is_joy_button_pressed(d, JOY_BUTTON_A),
+			"ui_cancel": Input.is_joy_button_pressed(d, JOY_BUTTON_B),
+			"ui_up": Input.is_joy_button_pressed(d, JOY_BUTTON_DPAD_UP) or ly < -0.6,
+			"ui_down": Input.is_joy_button_pressed(d, JOY_BUTTON_DPAD_DOWN) or ly > 0.6,
+			"ui_left": Input.is_joy_button_pressed(d, JOY_BUTTON_DPAD_LEFT) or lx < -0.6,
+			"ui_right": Input.is_joy_button_pressed(d, JOY_BUTTON_DPAD_RIGHT) or lx > 0.6,
+		}
+		for action: String in PAD_UI_ACTIONS:
+			var key := "%d:%s" % [d, action]
+			if held[action] != _pad_prev.get(key, false):
+				_pad_prev[key] = held[action]
+				_send_ui(action, held[action])
+
+
+func _send_ui(action: String, pressed: bool) -> void:
+	var focus := get_viewport().gui_get_focus_owner()
+	if focus == null or not focus.is_visible_in_tree():
+		return  # nothing to navigate (e.g. during a flight); players read the pads directly
+	if action == "ui_accept" and focus is BaseButton:
+		if pressed:
+			(focus as BaseButton).pressed.emit()
+		return
+	var ev := InputEventAction.new()
+	ev.action = action
+	ev.pressed = pressed
+	Input.parse_input_event(ev)
+
+
+## Every menu button clicks when focused and pressed.
+func _on_node_added(node: Node) -> void:
+	if node is BaseButton:
+		var b := node as BaseButton
+		b.focus_entered.connect(Sfx.play.bind("nav", 1.0, -10.0))
+		b.pressed.connect(Sfx.play.bind("confirm"))
+
+
+func _apply_fullscreen(on: bool) -> void:
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if on else DisplayServer.WINDOW_MODE_WINDOWED)
+
+
+func register_root(root: Node) -> void:
+	_root = root
+
+
+func goto(screen: String) -> void:
+	get_tree().paused = false
+	if _screen != null and is_instance_valid(_screen):
+		_screen.queue_free()
+	_screen = load(SCREENS[screen]).new()
+	_root.add_child(_screen)
+	Music.play("flight" if screen == "run" else "menu")
+	_fit_screen()
+
+
+## Menu screens are Controls under a plain Node, so size them to the visible area by hand.
+func _fit_screen() -> void:
+	if _screen is Control and is_instance_valid(_screen):
+		(_screen as Control).position = Vector2.ZERO
+		(_screen as Control).size = get_viewport().get_visible_rect().size
+
+
+func random_seed() -> int:
+	return randi() & LevelCode.SEED_MASK
+
+
+func random_team_name() -> String:
+	return ADJECTIVES[randi() % ADJECTIVES.size()] + " " + ANIMALS[randi() % ANIMALS.size()]
+
+
+func level_code() -> String:
+	return LevelCode.encode(level_seed, difficulty)
+
+
+## Sets the next level from a code. Returns false if the code is not valid.
+func use_level_code(code: String) -> bool:
+	var parsed := LevelCode.decode(code)
+	if parsed.is_empty():
+		return false
+	use_level(parsed["seed"], parsed["difficulty"])
+	return true
+
+
+func use_level(s: int, d: int) -> void:
+	level_seed = s
+	difficulty = d
+	fixed_level = true
+
+
+func use_random_level() -> void:
+	level_seed = random_seed()
+	fixed_level = false
+
+
+func _make_theme() -> Theme:
+	var theme := Theme.new()
+	theme.default_font = UiKit.body_font()
+	theme.default_font_size = 10
+	var normal := _box(Color("3b2d52"), UiKit.INK)
+	var hover := _box(Color("4e3d6b"), UiKit.GOLD)
+	var pressed := _box(UiKit.GOLD, UiKit.INK)
+	pressed.border_width_bottom = 2
+	pressed.content_margin_top = 6
+	var focus := _box(Color(0, 0, 0, 0), UiKit.GOLD)
+	focus.draw_center = false
+	focus.shadow_size = 0
+	for t in ["Button"]:
+		theme.set_stylebox("normal", t, normal)
+		theme.set_stylebox("hover", t, hover)
+		theme.set_stylebox("pressed", t, pressed)
+		theme.set_stylebox("focus", t, focus)
+		theme.set_stylebox("disabled", t, _box(Color("1c1626"), Color("3a3048")))
+		theme.set_color("font_color", t, UiKit.CREAM)
+		theme.set_color("font_hover_color", t, Color.WHITE)
+		theme.set_color("font_pressed_color", t, UiKit.INK)
+		theme.set_color("font_focus_color", t, Color.WHITE)
+		theme.set_color("font_hover_pressed_color", t, UiKit.INK)
+		theme.set_font_size("font_size", t, 11)
+	var panel := _box(Color(0.11, 0.08, 0.16, 0.92), UiKit.INK)
+	panel.content_margin_left = 8
+	panel.content_margin_right = 8
+	panel.content_margin_top = 6
+	panel.content_margin_bottom = 6
+	theme.set_stylebox("panel", "PanelContainer", panel)
+	theme.set_stylebox("panel", "Panel", panel)
+	theme.set_stylebox("normal", "LineEdit", _box(Color("1c1626"), UiKit.INK))
+	theme.set_stylebox("focus", "LineEdit", _box(Color("1c1626"), UiKit.GOLD))
+	theme.set_color("font_color", "LineEdit", UiKit.CREAM)
+	theme.set_color("font_color", "Label", UiKit.CREAM)
+	theme.set_color("font_outline_color", "Label", UiKit.INK)
+	theme.set_constant("outline_size", "Label", 3)
+	return theme
+
+
+## Chunky pixel box: square corners, a dark outline and a thicker bottom edge.
+func _box(bg: Color, border: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border
+	sb.set_border_width_all(2)
+	sb.border_width_bottom = 4
+	sb.content_margin_left = 10
+	sb.content_margin_right = 10
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	sb.shadow_color = Color(0, 0, 0, 0.3)
+	sb.shadow_offset = Vector2(2, 2)
+	sb.shadow_size = 1
+	return sb

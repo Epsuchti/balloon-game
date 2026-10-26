@@ -1,0 +1,45 @@
+name: Build
+
+# Exports Windows, macOS and Linux builds. Run it by hand from the Actions tab, or push a v* tag.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+env:
+  GODOT_VERSION: 4.5.1
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot and export templates
+        run: |
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
+          curl -sSL -o templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q templates.tpz
+          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mv templates/* "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/"
+      - name: Import project
+        run: timeout 300 godot --headless --path . --import || true
+      - name: Export
+        run: |
+          mkdir -p builds/windows builds/macos builds/linux
+          godot --headless --path . --export-release "Windows" builds/windows/BalloonCrew.exe
+          godot --headless --path . --export-release "macOS" builds/macos/BalloonCrew.zip
+          godot --headless --path . --export-release "Linux" builds/linux/BalloonCrew.x86_64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BalloonCrew-windows
+          path: builds/windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BalloonCrew-macos
+          path: builds/macos
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BalloonCrew-linux
+          path: builds/linux
