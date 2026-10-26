@@ -12,6 +12,7 @@ const AIR_ACCEL := 350.0
 const GRAVITY := 420.0
 const JUMP_SPEED := 150.0
 const REACH := 6.5
+const POUR_REACH := 10.0
 const HALF_W := 3.0
 
 var slot: PlayerSlot
@@ -123,16 +124,21 @@ func _take_nearest_station() -> bool:
 
 
 ## Y: pour what you carry into the station it belongs to, drop it anywhere else, or pick up an item.
+## Pouring works from a little further away than taking a station, and from the floor right below a
+## deck station too (the hold sits under the burner).
 func _use_item() -> bool:
 	if carrying != null:
 		for st in balloon.stations:
-			if st.unlocked and _near(st.position) and st.accepts(carrying.kind):
+			if st.unlocked and st.accepts(carrying.kind) and absf(st.position.x - position.x) <= POUR_REACH \
+					and position.y >= st.position.y - 6.0 and position.y <= st.position.y + 20.0:
 				if balloon.refill(carrying.kind):
 					balloon.remove_item(carrying)
 					carrying = null
 					Sfx.play("refill")
 				else:
 					Sfx.play("empty")
+					if balloon.run != null:
+						balloon.run.float_text(global_position + Vector2(0, -20), "Already full", Color("c0c0d0"))
 				return true
 		drop_carried(false)
 		return true

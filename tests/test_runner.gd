@@ -221,6 +221,25 @@ func _test_buttons() -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	check(me.carrying == null, "Y drops it again")
+	b.fuel = 10.0
+	var burner: Station = b.stations[Roles.BURNER]
+	me.position = Vector2(burner.position.x + 3.0, Balloon.FLOOR_Y)
+	me.vel = Vector2.ZERO
+	it.position = me.position
+	Players.bot_inputs[s.device] = {"buttons": none}
+	for i in 20:
+		await get_tree().physics_frame
+	press.call(PlayerSlot.Btn.Y)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Players.bot_inputs[s.device] = {"buttons": none}
+	await get_tree().physics_frame
+	press.call(PlayerSlot.Btn.Y)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(b.fuel > 10.0 and me.carrying == null, "Y pours fuel into the burner from the floor below it")
+	Players.bot_inputs[s.device] = {"buttons": none}
+	me.position = rk.position
 	Players.bot_inputs[s.device] = {"buttons": none}
 	for i in 40:
 		await get_tree().physics_frame
