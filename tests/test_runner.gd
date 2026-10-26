@@ -226,6 +226,10 @@ func _test_buttons() -> void:
 	me.position = Vector2(burner.position.x + 3.0, Balloon.FLOOR_Y)
 	me.vel = Vector2.ZERO
 	it.position = me.position
+	# The run's starting supplies land at random spots; keep them out of reach so Y takes our can.
+	for other in b.items:
+		if other != it:
+			other.position = Vector2(-40.0, Balloon.FLOOR_Y)
 	Players.bot_inputs[s.device] = {"buttons": none}
 	for i in 20:
 		await get_tree().physics_frame
