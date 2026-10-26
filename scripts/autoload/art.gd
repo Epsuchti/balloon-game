@@ -34,6 +34,15 @@ const SPRITES := {
 		"dggggggd",
 		"dddddddd",
 	],
+	"kit": [
+		"..kkk..",
+		"..k.k..",
+		"lllllll",
+		"llleell",
+		"lleeeel",
+		"llleell",
+		"lllllll",
+	],
 	"gold": [
 		".ooo.",
 		"oylyo",

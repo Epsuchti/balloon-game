@@ -5,12 +5,12 @@ extends Control
 const STATIONS := [
 	"Hold A (or up) to heat and climb. Uses fuel.",
 	"Hold A (or down) to pull the envelope in and sink.",
-	"Push left / right to fly sideways.",
+	"Push right (or hold A) to fly right. Broken: no flying right!",
 	"Aim with the stick, hold A to fire. Uses ammo.",
 	"Aim, A to cast. Hooks loot and fallen crewmates.",
-	"Hold A to patch the hull.",
+	"Hold A to patch the hull. Uses repair kits.",
 	"Aim the light at night (7+ players).",
-	"A second propeller on the other side.",
+	"Push left (or hold A) to fly left. Broken: no flying left!",
 ]
 
 var _status: Label
@@ -80,9 +80,10 @@ func _ready() -> void:
 	items.add_theme_constant_override("separation", -4)
 	items.add_child(UiKit.ItemIcon.new("fuel"))
 	items.add_child(UiKit.ItemIcon.new("ammo"))
-	_tip(sup, items, "Fuel cans and ammo crates wait in the hold. Press Y to pick one up, carry it to the burner (fuel) or turret (ammo) and press Y again. Arrows show the way.")
+	items.add_child(UiKit.ItemIcon.new("kit"))
+	_tip(sup, items, "Fuel, ammo and repair kits wait in the hold. Press Y to pick one up, carry it to the burner, turret or repair kit station and press Y again. Arrows show the way.")
 	_tip(sup, Warn.new(), "Smoke and a red ! mean a station broke. Take it with X and hold A until it's fixed.")
-	_tip(sup, UiKit.StationIcon.new(Roles.REPAIR), "The balloon never heals by itself. Patch it at the repair kit.")
+	_tip(sup, UiKit.StationIcon.new(Roles.REPAIR), "The balloon never heals by itself. Patch it at the repair kit; each kit patches a third of the hull. Collect more on the way or fish them up.")
 	_tip(sup, BossIcon.new(), "Beware the Grumpus! Man the turret and shoot it down for gold.")
 	_tip(sup, UiKit.ItemIcon.new("gold"), "Land softly on the flag platform. Gold only counts if you land!")
 

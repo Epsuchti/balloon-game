@@ -185,7 +185,7 @@ class Bars:
 		_text(font, Vector2(18, 15), "%d" % run.gold, 12, Color("f0c030"))
 		var t: float = run.elapsed
 		_text(font, Vector2(70, 15), "%d:%02d" % [int(t) / 60, int(t) % 60], 10, Color.WHITE)
-		_bar(Vector2(8, 22), "Hull", b.hull / Balloon.MAX_HULL, Color("e04848"))
+		_bar(Vector2(8, 22), "Hull", b.hull / Balloon.MAX_HULL, Color("e04848"), "+%d" % b.count_items("kit"))
 		_bar(Vector2(8, 31), "Fuel", b.fuel / Balloon.TANK, Color("f08838"), "+%d" % b.count_items("fuel"))
 		_bar(Vector2(8, 40), "Ammo", float(b.ammo) / Balloon.MAGAZINE, Color("a0c050"), "+%d" % b.count_items("ammo"))
 		# Top-center: progress to the landing platform.

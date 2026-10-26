@@ -230,6 +230,9 @@ static func _set_pieces(data: LevelData, rng: RandomNumberGenerator) -> void:
 	var n := data.segments.size()
 	var density: float = Difficulty.ENEMY_DENSITY[data.difficulty]
 	var pickup_mult: float = Difficulty.PICKUP_MULT[data.difficulty]
+	# Repair kits get their own random numbers, so adding them left the rest of every level as it was.
+	var kits := RandomNumberGenerator.new()
+	kits.seed = hash(Vector2i(data.level_seed, data.difficulty)) + 4111
 	for s in range(1, n - 1):
 		var seg: Dictionary = data.segments[s]
 		var t: float = seg["tension"]
@@ -238,7 +241,7 @@ static func _set_pieces(data: LevelData, rng: RandomNumberGenerator) -> void:
 		var kind := ""
 		if seg["breather"]:
 			kind = "supplies"
-			_supplies(data, rng, x0, x1, pickup_mult)
+			_supplies(data, rng, kits, x0, x1, pickup_mult)
 		else:
 			var options: Array[String] = ["stalactites", "wind_shaft", "floating_islands"]
 			if t >= 0.65:
@@ -262,6 +265,12 @@ static func _set_pieces(data: LevelData, rng: RandomNumberGenerator) -> void:
 			data.spawns.append({"pos": _air_point(data, rng, x, 0.6), "kind": _enemy_kind(rng, t), "segment": s})
 		for g in rng.randi_range(1, 2):
 			data.pickups.append({"pos": _air_point(data, rng, rng.randi_range(x0, x1), 0.35), "kind": "gold"})
+		# Now and then a repair kit lies on the ground below the way through: dive for it or fish it up.
+		if not seg["breather"] and kits.randf() < 0.5:
+			var kx := kits.randi_range(x0, x1)
+			var ky := _floor(data, kx, data.path[kx])
+			if ky - data.path[kx] < data.col_half[kx] + 6.0:
+				data.pickups.append({"pos": Vector2((kx + 0.5) * Tiles.SIZE, (ky - 0.6) * Tiles.SIZE), "kind": "kit"})
 
 
 static func _air_point(data: LevelData, rng: RandomNumberGenerator, x: int, spread: float) -> Vector2:
@@ -309,7 +318,7 @@ static func _max_slope(data: LevelData, x: int) -> float:
 	return m
 
 
-static func _supplies(data: LevelData, rng: RandomNumberGenerator, x0: int, x1: int, mult: float) -> void:
+static func _supplies(data: LevelData, rng: RandomNumberGenerator, kit_rng: RandomNumberGenerator, x0: int, x1: int, mult: float) -> void:
 	var kinds: Array[String] = []
 	for i in roundi(rng.randf_range(1.0, 2.0) * mult):
 		kinds.append("fuel")
@@ -321,6 +330,9 @@ static func _supplies(data: LevelData, rng: RandomNumberGenerator, x0: int, x1: 
 		var x := int(lerpf(x0, x1, (i + 0.5) / kinds.size()))
 		var y := data.path[x] + rng.randf_range(-1.0, 1.0) * BH * 0.25
 		data.pickups.append({"pos": Vector2((x + 0.5) * Tiles.SIZE, y * Tiles.SIZE), "kind": kinds[i]})
+	for i in roundi(kit_rng.randf_range(0.6, 1.4) * mult):
+		var x := kit_rng.randi_range(x0, x1)
+		data.pickups.append({"pos": Vector2((x + 0.5) * Tiles.SIZE, data.path[x] * Tiles.SIZE), "kind": "kit"})
 
 
 static func _narrow_gap(data: LevelData, rng: RandomNumberGenerator, x0: int, x1: int) -> void:

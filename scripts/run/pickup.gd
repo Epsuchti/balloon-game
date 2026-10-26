@@ -4,6 +4,7 @@ extends Node2D
 
 var kind := "gold"
 var run: Node
+var hooked := false   # on the fishing hook: the rod moves it now
 var _base := Vector2.ZERO
 var _t := randf() * TAU
 
@@ -14,6 +15,9 @@ func _ready() -> void:
 
 func _physics_process(dt: float) -> void:
 	_t += dt
+	queue_redraw()
+	if hooked:
+		return
 	position = _base + Vector2(0, roundf(sin(_t * 2.0) * 2.0))
 	var b: Balloon = run.balloon
 	var local := b.local_of(global_position)

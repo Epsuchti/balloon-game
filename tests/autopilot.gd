@@ -2,12 +2,13 @@ class_name Autopilot
 extends RefCounted
 ## A three-bot crew that flies a level: the burner holds the tunnel's height, the propeller pushes
 ## on, and the shrinker doubles as the runner: it fetches fuel cans from the hold when the tank runs
-## low, fixes stations nobody mans, patches the hull at the repair kit and shoves boarders overboard.
+## low (and repair kits when the repair station runs out), fixes stations nobody mans, patches the hull at the repair kit and shoves boarders overboard.
 ## Used by the tests to prove a level can be finished and landed.
 
 var run: Node
 var slots: Array[PlayerSlot] = []   # burner, shrinker, propeller
 var _runner := "man"
+var _fetch := "fuel"   # what the "fuel" job fetches from the hold: fuel or a repair kit
 var _target: Station
 var _tick := 0
 
@@ -91,12 +92,12 @@ func _run_shrinker(b: Balloon, shrink: bool) -> void:
 				_input_for(slot, Vector2.ZERO, shrink, false)
 		"fuel":
 			if me.carrying != null:
-				if me.carrying.kind == "fuel":
+				if me.carrying.kind == _fetch:
 					_runner = "to_burner"
 				else:
 					_input_for(slot, Vector2.ZERO, false, pulse)  # wrong item, drop it
 				return
-			var item := _nearest_fuel(b, me)
+			var item := _nearest_item(b, me, _fetch)
 			if item == null:
 				_back(b)
 				return
@@ -106,7 +107,8 @@ func _run_shrinker(b: Balloon, shrink: bool) -> void:
 			if me.carrying == null:
 				_back(b)
 				return
-			if _walk(slot, me, b.stations[Roles.BURNER].position):
+			var to: Station = b.stations[Roles.BURNER if _fetch == "fuel" else Roles.REPAIR]
+			if _walk(slot, me, to.position):
 				_press(slot, Vector2.ZERO, PlayerSlot.Btn.Y, pulse)
 		"shove":
 			var bd := _boarder(b)
@@ -137,7 +139,7 @@ func _run_shrinker(b: Balloon, shrink: bool) -> void:
 				_press(slot, Vector2.ZERO, PlayerSlot.Btn.X, pulse)
 		"fix":
 			if me.station == _target:
-				var done := not _target.broken and (_target.role != Roles.REPAIR or b.hull >= 90.0 or _urgent(b))
+				var done := not _target.broken and (_target.role != Roles.REPAIR or b.hull >= 90.0 or b.patches <= 0.0 or _urgent(b))
 				if done:
 					_input_for(slot, Vector2.ZERO, false, true)
 					_back(b)
@@ -161,6 +163,10 @@ func _next_job(b: Balloon) -> String:
 	if _boarder(b) != null:
 		return "shove"
 	if b.fuel < 30.0 and b.count_items("fuel") > 0:
+		_fetch = "fuel"
+		return "fuel"
+	if b.hull < 70.0 and b.patches < Balloon.KIT_PATCH and b.count_items("kit") > 0:
+		_fetch = "kit"
 		return "fuel"
 	for role in [Roles.SHRINKER, Roles.REPAIR, Roles.PROPELLER2, Roles.LAMP, Roles.TURRET, Roles.FISHING]:
 		var st: Station = b.stations[role]
@@ -169,7 +175,7 @@ func _next_job(b: Balloon) -> String:
 			return "fix"
 	if b.ammo > 0 and _nearest_enemy(b) != null:
 		return "turret"
-	if b.hull < 50.0:
+	if b.hull < 50.0 and b.patches > 0.0:
 		_target = b.stations[Roles.REPAIR]
 		return "fix"
 	return ""
@@ -227,10 +233,10 @@ func _boarder(b: Balloon) -> Boarder:
 	return null if b.boarders.is_empty() else b.boarders[0]
 
 
-func _nearest_fuel(b: Balloon, me: CrewMember) -> SupplyItem:
+func _nearest_item(b: Balloon, me: CrewMember, kind: String) -> SupplyItem:
 	var best: SupplyItem = null
 	for it in b.items:
-		if it.kind == "fuel" and it.carrier == null:
+		if it.kind == kind and it.carrier == null:
 			if best == null or absf(it.position.x - me.position.x) < absf(best.position.x - me.position.x):
 				best = it
 	return best
