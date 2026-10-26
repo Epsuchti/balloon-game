@@ -20,10 +20,10 @@ Art, sound effects and the 8-bit soundtrack are generated in code (`scripts/auto
 - **Lose:** the balloon is destroyed, you hit the platform too fast, or you run out of fuel for good.
 - **Score:** the gold you collected. It only counts if you land; crashes are kept in the history with 0.
 
-Players run and jump around inside the basket. Walk up to a station and press **A** to take it,
-**B** to leave it free for someone else. Fuel cans and ammo crates sit in the hold at the bottom of the
-basket; pick one up with **A**, carry it to the burner (fuel) or turret (ammo) and press **A** there to
-refill it. When fuel or ammo runs low, a yellow arrow blinks over the supplies in the hold and another
+Players run and jump (**A**) around inside the basket. Each station has a coloured plate on the
+floor; stand on it and press **X** to take the station, **B** to leave it free for someone else.
+Fuel cans and ammo crates sit in the hold at the bottom of the basket; pick one up with **Y**, carry it
+to the burner (fuel) or turret (ammo) and press **Y** there to refill it (Y anywhere else drops it). When fuel or ammo runs low, a yellow arrow blinks over the supplies in the hold and another
 points at the station while someone carries a matching item. Mind the open edges:
 jump over a rail and you parachute down until the fisher reels you in or you respawn (and the crew
 loses a little gold).
@@ -64,9 +64,10 @@ An unplugged controller's character waves for 10 seconds; plug it back in to kee
 | Action | Gamepad | Keyboard 1 | Keyboard 2 |
 |---|---|---|---|
 | Move / aim | Left stick, D-pad (right stick aims) | WASD | Arrow keys |
-| Jump, take station, pick up, use station | A | Space | `.` or Numpad 0 |
-| Leave station, drop item | B | Q | `/` or Numpad `.` |
-| Shove a boarder overboard | X | E | `,` or Numpad 1 |
+| Jump; at a station: use it | A | Space | `.` or Numpad 0 |
+| Take a station, shove a boarder overboard | X | E | `,` or Numpad 1 |
+| Pick up, pour in or drop an item | Y | R | `;` or Numpad 2 |
+| Leave the station (or drop an item) | B | Q | `/` or Numpad `.` |
 | Drop through the deck | Down + A | S + Space | Down + `.` |
 | Setup: pick station | LB / RB | 1 / 3 | `[` / `]` |
 | Setup: random stations | Y | R | `;` |
@@ -79,7 +80,7 @@ to cast, **Repair kit** hold A, **Lamp** aim.
 
 ### Music and fullscreen
 
-**M** mutes or unmutes the music (menu, flight and a faster "danger" track while the boss is around or
+Music is on by default. **M** (or the Music button in the main menu) mutes or unmutes it (menu, flight and a faster "danger" track while the boss is around or
 the balloon is in trouble).
 
 The game starts fullscreen. Toggle with **F11**, **Alt+Enter** or **Cmd+Ctrl+F** (macOS); the choice is

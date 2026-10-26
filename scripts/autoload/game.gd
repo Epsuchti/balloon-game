@@ -40,6 +40,7 @@ func _ready() -> void:
 	get_tree().node_added.connect(_on_node_added)
 	get_tree().root.size_changed.connect(_fit_screen)
 	_settings.load(SETTINGS_PATH)
+	_take_over_gamepad_ui()
 	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_args().has("--windowed"):
 		_apply_fullscreen(_settings.get_value("display", "fullscreen", true))
 
@@ -58,6 +59,53 @@ func _input(event: InputEvent) -> void:
 		_settings.set_value("display", "fullscreen", not full)
 		_settings.save(SETTINGS_PATH)
 		get_viewport().set_input_as_handled()
+
+
+const PAD_UI_ACTIONS := ["ui_accept", "ui_cancel", "ui_up", "ui_down", "ui_left", "ui_right"]
+var _pad_prev := {}   # "device:action" -> held last frame
+
+
+## Menus are driven by every gamepad the same way (A selects, B goes back, D-pad or left stick
+## moves), polled here instead of relying on the default joypad bindings, which vary by platform.
+func _take_over_gamepad_ui() -> void:
+	for action: String in ["ui_accept", "ui_select", "ui_cancel", "ui_up", "ui_down", "ui_left", "ui_right",
+			"ui_focus_next", "ui_focus_prev"]:
+		for ev in InputMap.action_get_events(action):
+			if ev is InputEventJoypadButton or ev is InputEventJoypadMotion:
+				InputMap.action_erase_event(action, ev)
+
+
+func _process(_dt: float) -> void:
+	for d in Input.get_connected_joypads():
+		var lx := Input.get_joy_axis(d, JOY_AXIS_LEFT_X)
+		var ly := Input.get_joy_axis(d, JOY_AXIS_LEFT_Y)
+		var held := {
+			"ui_accept": Input.is_joy_button_pressed(d, JOY_BUTTON_A),
+			"ui_cancel": Input.is_joy_button_pressed(d, JOY_BUTTON_B),
+			"ui_up": Input.is_joy_button_pressed(d, JOY_BUTTON_DPAD_UP) or ly < -0.6,
+			"ui_down": Input.is_joy_button_pressed(d, JOY_BUTTON_DPAD_DOWN) or ly > 0.6,
+			"ui_left": Input.is_joy_button_pressed(d, JOY_BUTTON_DPAD_LEFT) or lx < -0.6,
+			"ui_right": Input.is_joy_button_pressed(d, JOY_BUTTON_DPAD_RIGHT) or lx > 0.6,
+		}
+		for action: String in PAD_UI_ACTIONS:
+			var key := "%d:%s" % [d, action]
+			if held[action] != _pad_prev.get(key, false):
+				_pad_prev[key] = held[action]
+				_send_ui(action, held[action])
+
+
+func _send_ui(action: String, pressed: bool) -> void:
+	var focus := get_viewport().gui_get_focus_owner()
+	if focus == null or not focus.is_visible_in_tree():
+		return  # nothing to navigate (e.g. during a flight); players read the pads directly
+	if action == "ui_accept" and focus is BaseButton:
+		if pressed:
+			(focus as BaseButton).pressed.emit()
+		return
+	var ev := InputEventAction.new()
+	ev.action = action
+	ev.pressed = pressed
+	Input.parse_input_event(ev)
 
 
 ## Every menu button clicks when focused and pressed.

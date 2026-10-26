@@ -49,7 +49,7 @@ func _man(b: Balloon, slot: PlayerSlot, role: int, move: Vector2, a: bool) -> vo
 		_input_for(slot, Vector2.ZERO, false, false)
 	elif me.station == null:
 		var d := st.position.x - me.position.x
-		_input_for(slot, Vector2(clampf(d / 6.0, -1.0, 1.0), 0), absf(d) < 3.0 and _tick % 2 == 0, false)
+		_press(slot, Vector2(clampf(d / 6.0, -1.0, 1.0), 0), PlayerSlot.Btn.X, absf(d) < 3.0 and _tick % 2 == 0)
 	elif st.broken:
 		_input_for(slot, Vector2.ZERO, true, false)
 	else:
@@ -101,13 +101,13 @@ func _run_shrinker(b: Balloon, shrink: bool) -> void:
 				_back(b)
 				return
 			if _walk(slot, me, Vector2(item.position.x, Balloon.FLOOR_Y)):
-				_input_for(slot, Vector2.ZERO, pulse, false)
+				_press(slot, Vector2.ZERO, PlayerSlot.Btn.Y, pulse)
 		"to_burner":
 			if me.carrying == null:
 				_back(b)
 				return
 			if _walk(slot, me, b.stations[Roles.BURNER].position):
-				_input_for(slot, Vector2.ZERO, pulse, false)
+				_press(slot, Vector2.ZERO, PlayerSlot.Btn.Y, pulse)
 		"shove":
 			var bd := _boarder(b)
 			if bd == null:
@@ -134,7 +134,7 @@ func _run_shrinker(b: Balloon, shrink: bool) -> void:
 			elif foe == null or st.operator != null:
 				_back(b)
 			elif _walk(slot, me, st.position):
-				_input_for(slot, Vector2.ZERO, pulse, false)
+				_press(slot, Vector2.ZERO, PlayerSlot.Btn.X, pulse)
 		"fix":
 			if me.station == _target:
 				var done := not _target.broken and (_target.role != Roles.REPAIR or b.hull >= 90.0 or _urgent(b))
@@ -146,7 +146,7 @@ func _run_shrinker(b: Balloon, shrink: bool) -> void:
 			elif _target.operator != null and _target.operator != me:
 				_back(b)
 			elif _walk(slot, me, _target.position):
-				_input_for(slot, Vector2.ZERO, pulse, false)
+				_press(slot, Vector2.ZERO, PlayerSlot.Btn.X, pulse)
 		"goto":
 			var job := _next_job(b)
 			if job != "" and me.station == null:
@@ -154,7 +154,7 @@ func _run_shrinker(b: Balloon, shrink: bool) -> void:
 			elif me.station == _target:
 				_runner = "man"
 			elif _walk(slot, me, _target.position):
-				_input_for(slot, Vector2.ZERO, pulse, false)
+				_press(slot, Vector2.ZERO, PlayerSlot.Btn.X, pulse)
 
 
 func _next_job(b: Balloon) -> String:
@@ -210,10 +210,8 @@ func _walk(slot: PlayerSlot, me: CrewMember, spot: Vector2) -> bool:
 	var on_floor := me.on_ground and absf(me.position.y - Balloon.FLOOR_Y) < 0.5
 	var want_deck := spot.y < 6.0
 	if want_deck and on_floor:
-		# Jump up to the deck from between the hold and the floor stations, where A grabs nothing.
-		var jx := 15.5 if me.position.x >= 0.0 else -15.5
-		var dj := jx - me.position.x
-		_input_for(slot, Vector2(clampf(dj / 6.0, -1.0, 1.0), 0), absf(dj) < 1.0 and pulse, false)
+		# Jump up to the deck from under its middle.
+		_input_for(slot, Vector2(clampf(-me.position.x / 6.0, -1.0, 1.0), 0), absf(me.position.x) < 6.0 and pulse, false)
 		return false
 	if not want_deck and on_deck:
 		_input_for(slot, Vector2(0, 1), pulse, false)  # drop through the deck
@@ -236,6 +234,12 @@ func _nearest_fuel(b: Balloon, me: CrewMember) -> SupplyItem:
 			if best == null or absf(it.position.x - me.position.x) < absf(best.position.x - me.position.x):
 				best = it
 	return best
+
+
+func _press(slot: PlayerSlot, move: Vector2, button: int, down: bool) -> void:
+	var buttons: Array[bool] = [false, false, false, false, false, false, false, false]
+	buttons[button] = down
+	Players.bot_inputs[slot.device] = {"move": move, "buttons": buttons}
 
 
 func _input_for(slot: PlayerSlot, move: Vector2, a: bool, b_button: bool) -> void:

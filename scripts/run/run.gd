@@ -264,9 +264,9 @@ func _supply_hints() -> void:
 	var low_ammo := balloon.ammo < Balloon.MAGAZINE * 0.25 \
 		and balloon.count_items("ammo") > 0
 	if low_fuel and not _hinted.get("fuel", false):
-		hud.message("Fuel low! Pick up a fuel can in the hold (A), carry it to the burner, press A", Color("f08838"))
+		hud.message("Fuel low! Grab a fuel can in the hold with Y, carry it to the burner, press Y", Color("f08838"))
 	if low_ammo and not _hinted.get("ammo", false):
-		hud.message("Ammo low! Carry an ammo crate from the hold to the turret and press A", Color("a0c050"))
+		hud.message("Ammo low! Grab an ammo crate in the hold with Y, carry it to the turret, press Y", Color("a0c050"))
 	_hinted["fuel"] = low_fuel
 	_hinted["ammo"] = low_ammo
 
@@ -319,7 +319,7 @@ func _breakdown_weight(st: Station) -> float:
 
 func break_station(st: Station) -> void:
 	st.break_down()
-	hud.message("%s! Take the %s and hold A to fix it" % [Roles.BREAKDOWNS[st.role], Roles.NAMES[st.role].to_lower()], Color("ff7050"))
+	hud.message("%s! Take the %s (X) and hold A to fix it" % [Roles.BREAKDOWNS[st.role], Roles.NAMES[st.role].to_lower()], Color("ff7050"))
 
 
 ## Three out of four levels have a boss, decided by the seed so a level code always plays the same.

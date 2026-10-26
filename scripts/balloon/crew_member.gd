@@ -1,7 +1,9 @@
 class_name CrewMember
 extends Node2D
-## A player inside the basket, simulated in the basket's local space. Runs and jumps around,
-## takes stations (A), leaves them (B), carries supplies, and shoves boarders (X).
+## A player inside the basket, simulated in the basket's local space. Runs and jumps (A), takes
+## stations or shoves boarders (X), leaves stations (B), and picks up, pours and drops supplies (Y).
+## Each job has its own button, so jumping next to a station or grabbing an item lying in front of
+## one always does what you meant.
 ## The basket has open edges: jump over a rail and you fall out.
 
 const SPEED := 55.0
@@ -9,7 +11,7 @@ const ACCEL := 700.0
 const AIR_ACCEL := 350.0
 const GRAVITY := 420.0
 const JUMP_SPEED := 150.0
-const REACH := 7.0
+const REACH := 6.5
 const HALF_W := 3.0
 
 var slot: PlayerSlot
@@ -49,13 +51,16 @@ func tick(dt: float) -> void:
 		input_x = slot.move.x
 		if slot.just_pressed(PlayerSlot.Btn.A):
 			if slot.move.y > 0.6 and _on_deck():
-				_drop_through = 0.25  # down + A always drops through the deck
-			elif not _interact() and on_ground:
+				_drop_through = 0.25  # down + A drops through the deck
+			elif on_ground:
 				vel.y = -JUMP_SPEED
 				on_ground = false
 				Sfx.play("jump", randf_range(0.9, 1.1), -14.0)
 		if slot.just_pressed(PlayerSlot.Btn.X):
-			_shove()
+			if not _shove():
+				_take_nearest_station()
+		if slot.just_pressed(PlayerSlot.Btn.Y):
+			_use_item()
 		if slot.just_pressed(PlayerSlot.Btn.B) and carrying != null:
 			drop_carried(false)
 	_physics(input_x, dt)
@@ -104,7 +109,21 @@ func _near(p: Vector2) -> bool:
 	return absf(p.x - position.x) <= REACH and absf(p.y - position.y) <= 3.0
 
 
-func _interact() -> bool:
+## X: take the free station you're standing at (the closest one if two are in reach).
+func _take_nearest_station() -> bool:
+	var best: Station = null
+	for st in balloon.stations:
+		if st.unlocked and st.operator == null and st.blocked_by == null and _near(st.position):
+			if best == null or absf(st.position.x - position.x) < absf(best.position.x - position.x):
+				best = st
+	if best == null:
+		return false
+	take_station(best)
+	return true
+
+
+## Y: pour what you carry into the station it belongs to, drop it anywhere else, or pick up an item.
+func _use_item() -> bool:
 	if carrying != null:
 		for st in balloon.stations:
 			if st.unlocked and _near(st.position) and st.accepts(carrying.kind):
@@ -115,17 +134,18 @@ func _interact() -> bool:
 				else:
 					Sfx.play("empty")
 				return true
-		return false
-	for st in balloon.stations:
-		if st.unlocked and st.operator == null and st.blocked_by == null and _near(st.position):
-			take_station(st)
-			return true
+		drop_carried(false)
+		return true
+	var best: SupplyItem = null
 	for it in balloon.items:
 		if it.carrier == null and absf(it.position.x - position.x) <= REACH and absf(it.position.y - position.y) <= 6.0:
-			carrying = it
-			it.carrier = self
-			Sfx.play("pickup")
-			return true
+			if best == null or absf(it.position.x - position.x) < absf(best.position.x - position.x):
+				best = it
+	if best != null:
+		carrying = best
+		best.carrier = self
+		Sfx.play("pickup")
+		return true
 	return false
 
 
@@ -166,15 +186,17 @@ func knock(impulse: Vector2) -> void:
 	on_ground = false
 
 
-func _shove() -> void:
-	_shove_anim = 0.2
+## X next to a boarder: shove it overboard. Returns false if none is in reach.
+func _shove() -> bool:
 	for b in balloon.boarders:
 		var d := b.position - (position + Vector2(0, -5))
 		if absf(d.x) < 12.0 and absf(d.y) < 14.0:
+			_shove_anim = 0.2
 			var dir := signf(d.x) if absf(d.x) > 0.5 else float(facing)
 			balloon.shove_boarder(b, Vector2(dir, -0.6))
 			Sfx.play("shove")
-			return
+			return true
+	return false
 
 
 func _draw() -> void:

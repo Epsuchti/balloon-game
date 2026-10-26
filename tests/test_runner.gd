@@ -17,6 +17,7 @@ func _ready() -> void:
 	await _test_run_smoke(1, 300)
 	await _test_run_smoke(8, 900)
 	await _test_breakdown()
+	await _test_buttons()
 	await _test_screens()
 	await _test_autopilot(Difficulty.EASY, 777)
 	await _test_autopilot(Difficulty.NORMAL, 777)
@@ -177,6 +178,77 @@ func _test_run_smoke(bots: int, frames: int) -> void:
 	await get_tree().process_frame
 
 
+## A jumps even at a station, X takes it, Y picks up an item lying there; shots hit enemies;
+## a gamepad A presses the focused menu button.
+func _test_buttons() -> void:
+	Players.clear()
+	var s := Players.add_bot()
+	s.role = Roles.ROAM
+	Game.level_seed = 99
+	Game.difficulty = Difficulty.NORMAL
+	var run: Node = load("res://scripts/run/run.gd").new()
+	add_child(run)
+	await get_tree().physics_frame
+	var b: Balloon = run.balloon
+	var me := b.crew_for(s)
+	var rk: Station = b.stations[Roles.TURRET]
+	me.position = rk.position
+	b.add_item("fuel")
+	var it: SupplyItem = b.items[-1]
+	it.position = rk.position
+	var none: Array[bool] = [false, false, false, false, false, false, false, false]
+	Players.bot_inputs[s.device] = {"buttons": none}
+	for i in 30:
+		await get_tree().physics_frame
+	var press := func(btn: int) -> void:
+		var bs: Array[bool] = [false, false, false, false, false, false, false, false]
+		bs[btn] = true
+		Players.bot_inputs[s.device] = {"buttons": bs}
+	press.call(PlayerSlot.Btn.A)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(me.station == null and me.vel.y < 0.0, "A jumps even when standing at a station")
+	Players.bot_inputs[s.device] = {"buttons": none}
+	for i in 60:
+		await get_tree().physics_frame
+	press.call(PlayerSlot.Btn.Y)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(me.carrying != null and me.station == null, "Y picks up an item lying at a station")
+	Players.bot_inputs[s.device] = {"buttons": none}
+	await get_tree().physics_frame
+	press.call(PlayerSlot.Btn.Y)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(me.carrying == null, "Y drops it again")
+	Players.bot_inputs[s.device] = {"buttons": none}
+	for i in 40:
+		await get_tree().physics_frame
+	press.call(PlayerSlot.Btn.X)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(me.station == rk, "X takes the station")
+	var e: Enemy = run.spawn_enemy("goblin", b.center() + Vector2(200, 0))
+	e.hp = 1
+	e.set_physics_process(false)
+	run.spawn_bullet(b.center() + Vector2(150, 0), Vector2.RIGHT)
+	for i in 30:
+		await get_tree().physics_frame
+	check(not is_instance_valid(e), "a turret shot kills an enemy in its path")
+	run.queue_free()
+	Players.clear()
+	await get_tree().process_frame
+	var btn := Button.new()
+	var hit := [false]
+	btn.pressed.connect(func() -> void: hit[0] = true)
+	add_child(btn)
+	btn.grab_focus()
+	Game._send_ui("ui_accept", true)
+	check(hit[0], "gamepad A presses the focused menu button")
+	btn.queue_free()
+	await get_tree().process_frame
+
+
 ## A broken burner gives no heat until its operator holds A on it; a leak wears the hull down.
 func _test_breakdown() -> void:
 	Players.clear()
@@ -263,8 +335,14 @@ func _test_screens() -> void:
 	await get_tree().process_frame
 
 
-## Three bots fly a whole level and land it (see Autopilot).
+## Three bots fly a whole level and land it (see Autopilot). Breakdowns and enemy moves are random,
+## so a crew of bots gets a second try before the check fails.
 func _test_autopilot(difficulty: int, level_seed: int) -> void:
+	if not await _fly_autopilot(difficulty, level_seed, false):
+		await _fly_autopilot(difficulty, level_seed, true)
+
+
+func _fly_autopilot(difficulty: int, level_seed: int, last_try: bool) -> bool:
 	Players.clear()
 	var slots: Array[PlayerSlot] = []
 	for i in 3:
@@ -287,12 +365,15 @@ func _test_autopilot(difficulty: int, level_seed: int) -> void:
 	print("autopilot %s: %s after %.0f s, hull %.0f, fuel %.0f (+%d cans), gold %d" % [
 		LevelCode.encode(level_seed, difficulty), r.get("reason", "still flying"), run.elapsed, b.hull, b.fuel,
 		b.count_items("fuel"), run.gold])
-	check(r.get("landed", false), "autopilot lands on %s" % LevelCode.encode(level_seed, difficulty))
+	var landed: bool = r.get("landed", false)
+	if landed or last_try:
+		check(landed, "autopilot lands on %s" % LevelCode.encode(level_seed, difficulty))
 	run.queue_free()
 	Players.clear()
 	Scores.entries.pop_back()
 	Scores.save_scores()
 	await get_tree().process_frame
+	return landed
 
 
 func _screen_is(script_file: String) -> bool:

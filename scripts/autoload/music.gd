@@ -1,10 +1,11 @@
 extends Node
 ## 8-bit soundtrack, synthesized at startup like the sound effects (no audio files). Each track is
-## written below as chords, a lead melody and a drum pattern, then rendered on a background thread
-## into a looping square/triangle/noise chiptune. M mutes the music; the choice is remembered.
+## written below as chords, a lead melody and a drum pattern, then rendered into a looping
+## square/triangle/noise chiptune, one track per frame right after startup (well under a second each).
+## Music is on by default; M mutes and unmutes it, and the choice is remembered.
 
 const RATE := 22050
-const VOLUME_DB := -9.0
+const VOLUME_DB := -5.0
 const FADE := 0.6
 
 ## Note strings: one token per eighth note. "a4", "c#5", "bb4" play a note, "-" holds the previous
@@ -48,7 +49,7 @@ var _streams := {}
 var _player: AudioStreamPlayer
 var _want := ""
 var _playing := ""
-var _task := -1
+var _to_render: Array[String] = []
 var _settings := ConfigFile.new()
 
 const SETTINGS_PATH := "user://settings.cfg"
@@ -62,22 +63,7 @@ func _ready() -> void:
 	_settings.load(SETTINGS_PATH)
 	muted = _settings.get_value("audio", "music_muted", false)
 	if DisplayServer.get_name() != "headless":
-		_task = WorkerThreadPool.add_task(_render_all, false, "music")
-
-
-func _render_all() -> void:
-	for track: String in ["menu", "flight", "danger"]:
-		var s := render(track)
-		_set_stream.call_deferred(track, s)
-
-
-func _set_stream(track: String, s: AudioStreamWAV) -> void:
-	_streams[track] = s
-
-
-func _exit_tree() -> void:
-	if _task >= 0:
-		WorkerThreadPool.wait_for_task_completion(_task)
+		_to_render = ["menu", "flight", "danger"]
 
 
 ## Switch to a track ("" for silence). It fades in once it has been rendered.
@@ -86,6 +72,9 @@ func play(track: String) -> void:
 
 
 func _process(dt: float) -> void:
+	if not _to_render.is_empty():
+		var track: String = _to_render.pop_front()
+		_streams[track] = render(track)
 	var target := "" if muted else _want
 	if _playing != target:
 		_player.volume_db = move_toward(_player.volume_db, -60.0, 60.0 / FADE * dt)
@@ -104,9 +93,17 @@ func _process(dt: float) -> void:
 func _input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	if k != null and k.pressed and not k.echo and k.physical_keycode == KEY_M:
-		muted = not muted
-		_settings.set_value("audio", "music_muted", muted)
-		_settings.save(SETTINGS_PATH)
+		set_muted(not muted)
+
+
+signal muted_changed(muted: bool)
+
+
+func set_muted(on: bool) -> void:
+	muted = on
+	_settings.set_value("audio", "music_muted", muted)
+	_settings.save(SETTINGS_PATH)
+	muted_changed.emit(muted)
 
 
 # --- Synthesis ---

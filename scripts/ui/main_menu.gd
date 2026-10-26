@@ -46,6 +46,11 @@ func _ready() -> void:
 	_error.visible = false
 	box.add_child(_error)
 	_button(box, "Scoreboard", func() -> void: Game.goto("scores"))
+	var music := _button(box, "", func() -> void: Music.set_muted(not Music.muted))
+	var label_music := func(m: bool) -> void: music.text = "Music: " + ("off" if m else "on")
+	label_music.call(Music.muted)
+	Music.muted_changed.connect(label_music)
+	tree_exiting.connect(func() -> void: Music.muted_changed.disconnect(label_music))
 	_button(box, "Quit", func() -> void: get_tree().quit())
 	var hint := HBoxContainer.new()
 	hint.add_theme_constant_override("separation", 3)

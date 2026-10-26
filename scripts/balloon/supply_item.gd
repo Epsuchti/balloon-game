@@ -39,3 +39,16 @@ func _draw() -> void:
 	if carrier == null and needed() and int(Time.get_ticks_msec() / 250) % 2 == 0:
 		var y := -tex.get_height() - 4.0
 		draw_colored_polygon(PackedVector2Array([Vector2(-2, y), Vector2(2, y), Vector2(0, y + 2)]), Color("ffe060"))
+	elif carrier == null and _empty_handed_crew_near():
+		# A small Y button: "press Y to pick this up".
+		var c := Vector2(0, -tex.get_height() - 5.0)
+		draw_circle(c, 3.0, Color("f0c040"))
+		draw_string(ThemeDB.fallback_font, c + Vector2(-1.6, 2.2), "Y", HORIZONTAL_ALIGNMENT_LEFT, -1, 5, Color("1a1422"))
+
+
+func _empty_handed_crew_near() -> bool:
+	for c in balloon.crew:
+		if c.station == null and c.carrying == null and absf(c.position.x - position.x) <= CrewMember.REACH \
+				and absf(c.position.y - position.y) <= 6.0:
+			return true
+	return false
