@@ -305,6 +305,13 @@ func _test_breakdown() -> void:
 	while is_instance_valid(boss) and boss.alive():
 		boss.hit(1)
 	check(run.gold >= 40, "beating the boss pays out gold")
+	b.take_damage(999.0)
+	check(run.finished and b.wrecking, "losing starts the wreck")
+	for i in 60 * 8:
+		if b.exploded:
+			break
+		await get_tree().physics_frame
+	check(b.exploded, "the wrecked balloon falls and explodes")
 	run.queue_free()
 	Players.clear()
 	await get_tree().process_frame

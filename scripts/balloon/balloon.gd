@@ -8,6 +8,7 @@ extends CharacterBody2D
 
 signal landed(speed: float)
 signal crashed(reason: String)
+signal wreck_exploded   # the deflated balloon hit the ground (see start_wreck)
 
 const SCALE := 1.5
 const BASKET := Rect2(-48, -18, 96, 38)
@@ -78,6 +79,12 @@ var shrinking := false
 var thrust_input := 0.0
 var since_damage := 10.0
 var hit_flash := 0.0
+var wrecking := false   # deflating and falling after a lost run
+var exploded := false
+var _deflate := 0.0
+var _wreck_t := 0.0
+var _smoke: CPUParticles2D
+var _black_smoke: CPUParticles2D
 
 var stations: Array[Station] = []
 var crew: Array[CrewMember] = []
@@ -135,6 +142,32 @@ func _ready() -> void:
 	_lamp.energy = 0.0
 	_lamp.position = stations[Roles.LAMP].position + Vector2(0, -12)
 	rig.add_child(_lamp)
+	_smoke = _make_smoke(Color(0.75, 0.75, 0.78, 0.55), 10)
+	_black_smoke = _make_smoke(Color(0.4, 0.37, 0.4, 0.8), 16)
+
+
+func _make_smoke(color: Color, amount: int) -> CPUParticles2D:
+	var p := CPUParticles2D.new()
+	p.amount = amount
+	p.lifetime = 1.8
+	p.emitting = false
+	p.local_coords = false
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	p.emission_rect_extents = Vector2(20, 14)
+	p.direction = Vector2.UP
+	p.spread = 25.0
+	p.gravity = Vector2(0, -25)
+	p.initial_velocity_min = 8.0
+	p.initial_velocity_max = 20.0
+	p.scale_amount_min = 2.0
+	p.scale_amount_max = 4.0
+	var ramp := Gradient.new()
+	ramp.set_color(0, color)
+	ramp.set_color(1, Color(color.r, color.g, color.b, 0.0))
+	p.color_ramp = ramp
+	p.position = ENVELOPE_CENTER * SCALE
+	add_child(p)
+	return p
 
 
 ## Middle of the balloon's bounding box, in world space.
@@ -192,6 +225,12 @@ func set_night(amount: float) -> void:
 
 func _physics_process(dt: float) -> void:
 	_time += dt
+	_smoke.emitting = not exploded and hull < MAX_HULL * 0.6
+	_black_smoke.emitting = not exploded and (hull < MAX_HULL * 0.3 or wrecking)
+	if wrecking:
+		_wreck(dt)
+		queue_redraw()
+		return
 	burning = false
 	shrinking = false
 	thrust_input = 0.0
@@ -275,8 +314,47 @@ func _impact(col: KinematicCollision2D, n: Vector2, speed: float, dt: float) -> 
 		since_damage = 0.0
 
 
+## After a lost run: the envelope deflates, the balloon drops like a stone and blows up where it
+## lands. wreck_exploded fires then (or after a few seconds if it never hits anything).
+func start_wreck() -> void:
+	if wrecking:
+		return
+	wrecking = true
+	frozen = false
+	_wreck_t = 0.0
+	for st in stations:
+		st.on_leave()
+	Sfx.play("fall", 0.6, -4.0)
+
+
+func _wreck(dt: float) -> void:
+	if exploded:
+		return
+	_wreck_t += dt
+	_deflate = minf(1.0, _deflate + dt / 1.2)
+	envelope_size = lerpf(1.0, 0.6, _deflate)
+	heat = 0.0
+	velocity.y += GRAVITY * (1.0 + 3.0 * _deflate) * dt
+	velocity.x *= 1.0 - 0.8 * dt
+	var col := move_and_collide(velocity * dt)
+	if (col != null and _wreck_t > 0.9) or _wreck_t > 6.0:
+		_explode()
+	elif col != null:
+		velocity = Vector2.ZERO  # already on the ground: finish deflating first
+
+
+func _explode() -> void:
+	exploded = true
+	velocity = Vector2.ZERO
+	rig.visible = false
+	if run != null:
+		run.big_explosion(world_of(Vector2(0, 0)))
+	Sfx.play("crash")
+	wreck_exploded.emit()
+
+
 func take_damage(amount: float) -> void:
-	if frozen or amount <= 0.0:
+	if frozen or wrecking or amount <= 0.0:
 		return
 	hull -= amount
 	since_damage = 0.0
@@ -291,7 +369,7 @@ func take_damage(amount: float) -> void:
 
 ## Small, steady damage (a pecking harpy) without the hit effects.
 func wear(amount: float) -> void:
-	if frozen:
+	if frozen or wrecking:
 		return
 	hull -= amount
 	since_damage = 0.0
@@ -421,12 +499,21 @@ func shove_boarder(b: Boarder, dir: Vector2) -> void:
 # --- Drawing ---
 
 func _draw() -> void:
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(SCALE, SCALE))
+	if exploded:
+		return
+	var bottom := ENVELOPE_CENTER.y + ENVELOPE_RADII.y
 	var tex := Art.envelope_texture(envelope_size)
 	var size := tex.get_size()
-	var bottom := ENVELOPE_CENTER.y + ENVELOPE_RADII.y
 	var flash := Color(1, 0.5, 0.5) if hit_flash > 0.0 else Color.WHITE
-	draw_texture(tex, Vector2(-floorf(size.x / 2.0), bottom - size.y + 2.0), flash)
+	var wear_tint := lerpf(1.0, 0.7, clampf(1.0 - hull / MAX_HULL, 0.0, 1.0))
+	flash = flash * Color(wear_tint, wear_tint, wear_tint)
+	# Deflating: the envelope sags down onto its mouth and flaps.
+	var squash := 1.0 - 0.75 * _deflate
+	var flap := sin(_time * 18.0) * 0.06 * _deflate
+	draw_set_transform(Vector2(0, bottom * SCALE), flap, Vector2(SCALE * (1.0 + 0.25 * _deflate), SCALE * squash))
+	draw_texture(tex, Vector2(-floorf(size.x / 2.0), -size.y + 2.0), flash)
+	_draw_tears(size, bottom)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(SCALE, SCALE))
 	var rope := Color("5a4630")
 	var mouth := bottom - 1.0
 	draw_line(Vector2(-12, mouth), Vector2(-46, BASKET.position.y), rope, 1.0)
@@ -442,8 +529,43 @@ func _draw() -> void:
 		draw_rect(Rect2(cx, cy, 2, 2), Color("f0c030"))
 
 
+## Rips and patches on the envelope; more of them the more the hull is damaged.
+func _draw_tears(size: Vector2, _bottom: float) -> void:
+	var dmg := clampf(1.0 - hull / MAX_HULL, 0.0, 1.0)
+	var count := int(dmg * TEARS.size() + 0.3)
+	var ink := Color("2a1a1a")
+	for i in mini(count, TEARS.size()):
+		var t: Vector2 = TEARS[i]
+		var p := Vector2(t.x * size.x * 0.4, -size.y * (0.55 - t.y * 0.4)).round()
+		if i % 3 == 2:
+			# A patch sewn on.
+			draw_rect(Rect2(p.x - 2, p.y - 2, 5, 4), Color("c8b48a"))
+			draw_rect(Rect2(p.x - 2, p.y - 2, 5, 4), ink, false, 1.0)
+		else:
+			# A dark rip.
+			draw_line(p + Vector2(-2, -1), p + Vector2(0, 1), ink, 1.0)
+			draw_line(p + Vector2(0, 1), p + Vector2(2, -1), ink, 1.0)
+			draw_rect(Rect2(p.x - 1, p.y - 1, 2, 2), Color(0.1, 0.05, 0.05, 0.8))
+
+
+const TEARS := [
+	Vector2(-0.5, -0.3), Vector2(0.45, 0.1), Vector2(0.0, -0.6), Vector2(-0.3, 0.45),
+	Vector2(0.6, -0.4), Vector2(-0.7, 0.05), Vector2(0.25, 0.55), Vector2(-0.1, 0.15),
+]
+
+
 class Front:
 	extends Node2D
 	## Rails, floor and deck plank, drawn over the crew.
 	func _draw() -> void:
 		draw_texture(Art.basket_front(), Balloon.BASKET.position)
+		# Cracked planks as the hull takes damage.
+		var b := get_parent().get_parent() as Balloon
+		var dmg := clampf(1.0 - b.hull / Balloon.MAX_HULL, 0.0, 1.0)
+		var crack := Color("3a2414")
+		var spots := [Vector2(-30, 10), Vector2(20, 13), Vector2(-8, 8), Vector2(36, 9), Vector2(-40, 14)]
+		for i in mini(int(dmg * 6.0), spots.size()):
+			var p: Vector2 = spots[i]
+			draw_line(p, p + Vector2(3, 2), crack, 1.0)
+			draw_line(p + Vector2(3, 2), p + Vector2(5, 1), crack, 1.0)
+			draw_line(p + Vector2(3, 2), p + Vector2(3, 4), crack, 1.0)

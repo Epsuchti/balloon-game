@@ -2,7 +2,8 @@ extends Node
 ## Flies a run with simple bot pilots and saves screenshots. Needs a display (e.g. xvfb-run):
 ##   xvfb-run godot --path . res://tools/screenshot.tscn -- <crew> <seconds,...> <out_prefix>
 ## Use "menu", "setup", "controls" or "scores" instead of a crew size to capture that screen.
-## A fourth argument "night" starts in the dark, "boss" brings in the boss and breaks a station.
+## A fourth argument "night" starts in the dark, "boss" brings in the boss and breaks a station,
+## "damaged" starts with a battered hull, "wreck" loses the run after a second.
 
 var _shots: Array[float] = []
 var _prefix := "shot"
@@ -39,6 +40,12 @@ func _ready() -> void:
 	add_child(_run)
 	if args.size() > 3 and args[3] == "night":
 		_run.night = 1.0
+	if args.size() > 3 and args[3] == "damaged":
+		_run.balloon.hull = 22.0
+		_run.break_station(_run.balloon.stations[Roles.FISHING])
+	if args.size() > 3 and args[3] == "wreck":
+		await get_tree().create_timer(1.0).timeout
+		_run.balloon.take_damage(999.0)
 	if args.size() > 3 and args[3] == "boss":
 		await get_tree().physics_frame
 		_run.spawn_boss()

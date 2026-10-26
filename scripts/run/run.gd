@@ -540,6 +540,58 @@ func explosion(pos: Vector2, radius: float, damage: float) -> void:
 	_shake = maxf(_shake, 6.0)
 
 
+## The balloon blowing up at the end of a lost run: a fireball, flying planks and scraps of envelope.
+func big_explosion(pos: Vector2) -> void:
+	Sfx.play("boom", 0.5, 0.0)
+	terrain.damage_circle(pos, 44.0, 30.0)
+	var ball := Fireball.new()
+	ball.position = pos
+	effects.add_child(ball)
+	for spec: Array in [[Color("ffe060"), 30, 160.0], [Color("f07a20"), 40, 120.0], [Color("8a5a34"), 30, 200.0],
+			[Color("d94a3a"), 24, 150.0], [Color("f3e3c3"), 20, 140.0]]:
+		var p := CPUParticles2D.new()
+		p.position = pos
+		p.amount = spec[1]
+		p.lifetime = 1.4
+		p.one_shot = true
+		p.explosiveness = 1.0
+		p.direction = Vector2.UP
+		p.spread = 180.0
+		p.initial_velocity_min = spec[2] * 0.4
+		p.initial_velocity_max = spec[2]
+		p.gravity = Vector2(0, 260)
+		p.scale_amount_min = 2.0
+		p.scale_amount_max = 4.0
+		p.color = spec[0]
+		p.emitting = true
+		p.finished.connect(p.queue_free)
+		effects.add_child(p)
+	shake(12.0)
+
+
+class Fireball:
+	extends Node2D
+	## An expanding flash that turns into a puff of smoke.
+	var _t := 0.0
+
+	func _process(dt: float) -> void:
+		_t += dt
+		queue_redraw()
+		if _t > 1.2:
+			queue_free()
+
+	func _draw() -> void:
+		var k := _t / 1.2
+		var r := 10.0 + 70.0 * sqrt(k)
+		draw_circle(Vector2(0, -k * 30.0), r, Color(0.25, 0.22, 0.25, 0.6 * (1.0 - k)))
+		if _t < 0.5:
+			var f := _t / 0.5
+			draw_circle(Vector2.ZERO, r * 0.9, Color(1.0, 0.55, 0.15, 1.0 - f))
+			draw_circle(Vector2.ZERO, r * 0.55, Color(1.0, 0.9, 0.4, 1.0 - f))
+		if _t < 0.08:
+			draw_circle(Vector2.ZERO, 90.0, Color(1, 1, 1, 0.7))
+
+
 func on_balloon_hit(amount: float) -> void:
 	_shake = maxf(_shake, minf(6.0, 1.0 + amount * 0.3))
 	if amount > 3.0:
@@ -594,22 +646,29 @@ func _on_landed(speed: float) -> void:
 
 
 func _on_crashed(reason: String) -> void:
-	Sfx.play("crash")
-	burst(balloon.center(), Color("ff6030"), 40)
+	Sfx.play("hit", 0.6)
+	burst(balloon.center(), Color("ff6030"), 20)
 	_finish(false, reason)
 
 
+## Ends the run. A lost run first plays the wreck (deflate, fall, explode); the results follow it.
 func _finish(landed: bool, reason: String) -> void:
 	if finished:
 		return
 	finished = true
-	balloon.frozen = true
 	result = Scores.add({
 		"team": Game.team_name, "gold": gold if landed else 0, "collected": gold,
 		"time": snappedf(elapsed, 0.1), "crew": max_crew, "difficulty": level.difficulty,
 		"seed": level.level_seed, "landed": landed, "reason": reason,
 	})
-	get_tree().create_timer(1.5).timeout.connect(hud.show_results.bind(result))
+	if landed:
+		balloon.frozen = true
+		get_tree().create_timer(1.5).timeout.connect(hud.show_results.bind(result))
+	else:
+		hud.message(reason + "!", Color("ff7050"))
+		balloon.wreck_exploded.connect(func() -> void:
+			get_tree().create_timer(1.6).timeout.connect(hud.show_results.bind(result)), CONNECT_ONE_SHOT)
+		balloon.start_wreck()
 
 
 # --- Pause ---
