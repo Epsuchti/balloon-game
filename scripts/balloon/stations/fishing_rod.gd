@@ -1,9 +1,10 @@
+class_name FishingRod
 extends Station
-## Aim with the stick, press A to cast. The hook catches falling drops and parachuting crewmates
-## and reels them into the basket. Press A again to reel in early.
+## Aim with the stick, press A to cast. The hook catches the supplies lying on the ground or stuck to
+## the ceiling, falling drops and parachuting crewmates, and reels them into the basket. Press A again to reel in early.
 
 enum State { IDLE, OUT, REEL }
-const LINE_MAX := 230.0
+const LINE_MAX := 276.0   # 20% longer than it used to be
 const CAST_SPEED := 280.0
 const REEL_SPEED := 180.0
 const CATCH_RADIUS := 12.0

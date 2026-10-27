@@ -10,7 +10,7 @@ const RESPAWN_PENALTY := 5
 const NIGHT_COLOR := Color(0.08, 0.08, 0.16)
 const ZOOM := 0.9         # a bit more of the cave around the (big) balloon
 const ZOOM_OUT := 0.7     # about 22% further out while drops fall
-const START_SUPPLIES: Array[String] = ["fuel", "ammo"]
+const START_SUPPLIES: Array[String] = ["fuel", "ammo", "kit"]
 const FIRST_BREAKDOWN := 20.0
 # How likely each station is to be the next one to break.
 const BREAKDOWN_WEIGHTS := {
@@ -93,11 +93,7 @@ func _build_world() -> void:
 
 	pickups = _layer("Pickups")
 	for p: Dictionary in level.pickups:
-		var pk := Pickup.new()
-		pk.kind = p["kind"]
-		pk.run = self
-		pk.position = p["pos"]
-		pickups.add_child(pk)
+		place_pickup(p["kind"], p["pos"])
 	_spawned.resize(level.spawns.size())
 	if has_boss(level.level_seed):
 		var s := level.segments[int(level.segments.size() * 0.55)]
@@ -267,8 +263,15 @@ func _supply_hints() -> void:
 		hud.message("Fuel low! Grab a fuel can in the hold with Y, carry it to the burner, press Y", Color("f08838"))
 	if low_ammo and not _hinted.get("ammo", false):
 		hud.message("Ammo low! Grab an ammo crate in the hold with Y, carry it to the turret, press Y", Color("a0c050"))
+	var no_patches := balloon.patches <= 0.0 and balloon.hull < Balloon.MAX_HULL * 0.7
+	if no_patches and not _hinted.get("kit", false):
+		if balloon.count_items("kit") > 0:
+			hud.message("Out of patches! Carry a repair kit from the hold to the repair station, press Y", Color("e05050"))
+		else:
+			hud.message("Out of repair kits! Fly through them or fish them up", Color("e05050"))
 	_hinted["fuel"] = low_fuel
 	_hinted["ammo"] = low_ammo
+	_hinted["kit"] = no_patches
 
 
 ## Seconds between breakdowns for a crew of this size: about 30 s for two players, 13 s for eight.
@@ -372,11 +375,41 @@ func _activate_spawns() -> void:
 			spawn_enemy(sp["kind"], pos)
 			Sfx.play({"bat": "screech", "harpy": "caw", "goblin": "cackle", "bomber": "beep"}[sp["kind"]], 1.0, -10.0)
 		elif i % 3 == 0:
-			var pk := Pickup.new()
-			pk.kind = "gold"
-			pk.run = self
-			pk.position = pos
-			pickups.add_child(pk)
+			place_pickup("gold", pos)
+
+
+## Puts a pickup into the level, lying on the ground or stuck to the ceiling right above or below
+## where the generator put it, so the crew has to steer close and fish it in. Which of the two is
+## decided by the spot, so replays match; a surface the rod can't reach from the way through loses
+## to one it can.
+func place_pickup(kind: String, pos: Vector2) -> Pickup:
+	const REACH := 200.0
+	var pk := Pickup.new()
+	pk.kind = kind
+	pk.run = self
+	var down := _surface(pos, 1.0)
+	var up := _surface(pos, -1.0)
+	var prefer_up := hash(Vector2i(roundi(pos.x), roundi(pos.y))) % 2 == 0
+	var use_up := up >= 0.0 and (down < 0.0 or (prefer_up and up <= REACH) or (down > REACH and up < down))
+	if use_up:
+		pk.on_ceiling = true
+		pk.position = pos + Vector2(0, -up + 4.0)
+	elif down >= 0.0:
+		pk.position = pos + Vector2(0, down - 4.0)
+	else:
+		pk.position = pos
+	pickups.add_child(pk)
+	return pk
+
+
+## Distance from pos to the first solid tile straight down (dir 1) or up (dir -1), or -1 if none.
+func _surface(pos: Vector2, dir: float) -> float:
+	var d := 0.0
+	while d < 600.0:
+		if terrain.is_solid_at(pos + Vector2(0, d * dir)):
+			return d
+		d += 2.0
+	return -1.0
 
 
 func wind_at(pos: Vector2) -> Vector2:
@@ -443,11 +476,15 @@ func respawn_chute(c: Chute) -> void:
 
 # --- Fishing ---
 
-## Something the hook can grab near pos: a falling drop or a parachuting crewmate.
+## Something the hook can grab near pos: a falling drop, a pickup out of the balloon's way (like a
+## repair kit lying on the ground) or a parachuting crewmate.
 func find_catch(pos: Vector2, radius: float) -> Node2D:
 	for d: Drop in drops.get_children():
 		if d.falling() and d.global_position.distance_to(pos) < radius:
 			return d
+	for p: Pickup in pickups.get_children():
+		if not p.hooked and p.global_position.distance_to(pos) < radius:
+			return p
 	for c: Chute in chutes.get_children():
 		if not c.hooked and (c.global_position + Vector2(0, -8)).distance_to(pos) < radius + 4.0:
 			return c
@@ -459,6 +496,10 @@ func deliver_catch(obj: Node2D) -> void:
 		var d := obj as Drop
 		collect(d.kind, d.amount, d.global_position)
 		d.queue_free()
+	elif obj is Pickup:
+		var p := obj as Pickup
+		collect(p.kind, 5 if p.kind == "gold" else 0, p.global_position)
+		p.queue_free()
 	elif obj is Chute:
 		var c := obj as Chute
 		if Players.players.has(c.slot) and balloon.crew_for(c.slot) == null:
@@ -475,10 +516,10 @@ func collect(kind: String, amount: int, pos: Vector2) -> void:
 			gold += amount
 			Sfx.play("coin", randf_range(0.95, 1.1))
 			float_text(pos, "+%d" % amount, Color("f0c030"))
-		"fuel", "ammo":
+		"fuel", "ammo", "kit":
 			balloon.add_item(kind)
 			Sfx.play("refill", 1.2)
-			float_text(pos, "+" + ("fuel" if kind == "fuel" else "ammo"), Color("a0e0ff"))
+			float_text(pos, "+" + {"fuel": "fuel", "ammo": "ammo", "kit": "repair kit"}[kind], Color("a0e0ff"))
 
 
 func spawn_enemy(kind: String, pos: Vector2) -> Enemy:

@@ -18,6 +18,7 @@ func _ready() -> void:
 	await _test_run_smoke(8, 900)
 	await _test_breakdown()
 	await _test_buttons()
+	await _test_fans_and_kits()
 	await _test_screens()
 	await _test_autopilot(Difficulty.EASY, 777)
 	await _test_autopilot(Difficulty.NORMAL, 777)
@@ -321,6 +322,80 @@ func _test_breakdown() -> void:
 	await get_tree().process_frame
 
 
+## Each propeller only pulls its own way, and a broken one stops that way. Patching the hull uses
+## up repair kits, which are poured into the repair station and can be fished up.
+func _test_fans_and_kits() -> void:
+	Players.clear()
+	var s := Players.add_bot()
+	s.role = Roles.PROPELLER
+	Game.level_seed = 99
+	Game.difficulty = Difficulty.NORMAL
+	var run: Node = load("res://scripts/run/run.gd").new()
+	add_child(run)
+	await get_tree().physics_frame
+	var b: Balloon = run.balloon
+	var me := b.crew_for(s)
+	var right: Station = b.stations[Roles.PROPELLER]
+	check(me.station == right, "the bot mans the right propeller")
+	var none: Array[bool] = [false, false, false, false, false, false, false, false]
+	var a_btn: Array[bool] = [true, false, false, false, false, false, false, false]
+	Players.bot_inputs[s.device] = {"move": Vector2(-1, 0), "buttons": none}
+	for i in 30:
+		await get_tree().physics_frame
+	check(b.thrust >= 0.0, "the right propeller can't push left")
+	Players.bot_inputs[s.device] = {"move": Vector2(1, 0), "buttons": none}
+	for i in 30:
+		await get_tree().physics_frame
+	check(b.thrust > 0.3, "the right propeller pushes right")
+	run.break_station(right)
+	Players.bot_inputs[s.device] = {"move": Vector2(1, 0), "buttons": none}
+	for i in 60:
+		await get_tree().physics_frame
+	check(right.broken and b.thrust <= 0.01, "a broken right propeller means no flying right")
+	right.repair_breakdown()
+	var left: Station = b.stations[Roles.PROPELLER2]
+	me.take_station(left)
+	Players.bot_inputs[s.device] = {"move": Vector2.ZERO, "buttons": a_btn}
+	for i in 60:
+		await get_tree().physics_frame
+	check(b.thrust < -0.3, "holding A on the left propeller pushes left")
+
+	var rep: Station = b.stations[Roles.REPAIR]
+	me.take_station(rep)
+	b.hull = 50.0
+	b.patches = 0.0
+	for i in 30:
+		await get_tree().physics_frame
+	check(b.hull <= 50.0, "no patching without a repair kit")
+	check(b.refill("kit") and b.refill("kit") and not b.refill("kit"), "the repair station holds two kits")
+	var hull := b.hull
+	for i in 60:
+		await get_tree().physics_frame
+	check(b.hull > hull + 5.0 and b.patches < Balloon.MAX_PATCHES, "patching uses up the kits")
+	var resting := 0
+	var level_pickups: Array[Node] = run.pickups.get_children()
+	for p: Pickup in level_pickups:
+		var on_ground: bool = not p.on_ceiling and run.terrain.is_solid_at(p.global_position + Vector2(0, 6))
+		var stuck: bool = p.on_ceiling and run.terrain.is_solid_at(p.global_position - Vector2(0, 6))
+		if on_ground or stuck:
+			resting += 1
+	check(level_pickups.size() > 0 and resting == level_pickups.size(),
+			"every pickup lies on the ground or sticks to the ceiling (%d of %d)" % [resting, level_pickups.size()])
+	var pk := Pickup.new()
+	pk.kind = "kit"
+	pk.run = run
+	pk.position = b.global_position + Vector2(0, 400)
+	run.pickups.add_child(pk)
+	await get_tree().physics_frame
+	check(run.find_catch(pk.global_position, 6.0) == pk, "the fishing hook can catch a repair kit lying around")
+	var kits := b.count_items("kit")
+	run.deliver_catch(pk)
+	check(b.count_items("kit") == kits + 1, "a fished-up kit lands in the hold")
+	run.queue_free()
+	Players.clear()
+	await get_tree().process_frame
+
+
 ## Walks through every screen, and starts a run from the setup screen with everyone ready.
 func _test_screens() -> void:
 	Game.register_root(self)
@@ -365,7 +440,7 @@ func _test_screens() -> void:
 	await get_tree().process_frame
 
 
-## Three bots fly a whole level and land it (see Autopilot). Breakdowns and enemy moves are random,
+## Four bots fly a whole level and land it (see Autopilot). Breakdowns and enemy moves are random,
 ## so a crew of bots gets a second try before the check fails.
 func _test_autopilot(difficulty: int, level_seed: int) -> void:
 	if not await _fly_autopilot(difficulty, level_seed, false):
@@ -375,9 +450,9 @@ func _test_autopilot(difficulty: int, level_seed: int) -> void:
 func _fly_autopilot(difficulty: int, level_seed: int, last_try: bool) -> bool:
 	Players.clear()
 	var slots: Array[PlayerSlot] = []
-	for i in 3:
+	for role in [Roles.BURNER, Roles.SHRINKER, Roles.PROPELLER, Roles.FISHING]:
 		var s := Players.add_bot()
-		s.role = i
+		s.role = role
 		slots.append(s)
 	Game.level_seed = level_seed
 	Game.difficulty = difficulty
@@ -387,7 +462,7 @@ func _fly_autopilot(difficulty: int, level_seed: int, last_try: bool) -> bool:
 	var b: Balloon = run.balloon
 	var pilot := Autopilot.new(run, slots)
 	var frames := 0
-	while not run.finished and frames < 60 * 300:
+	while not run.finished and frames < 60 * 400:
 		frames += 1
 		pilot.step()
 		await get_tree().physics_frame

@@ -38,6 +38,8 @@ const COOLING := 0.07
 const MAX_ITEMS := 14
 const CAN_FUEL := 35.0
 const CRATE_AMMO := 20
+const KIT_PATCH := 30.0      # hull one repair kit patches
+const MAX_PATCHES := 60.0    # the repair station holds two kits' worth
 
 const STATION_SPOTS := [
 	[Roles.BURNER, Vector2(0, DECK_Y)],
@@ -69,6 +71,7 @@ var thrust := 0.0
 var hull := MAX_HULL
 var fuel := TANK
 var ammo := 30
+var patches := KIT_PATCH    # hull the repair station can still patch before it needs a new kit
 var frozen := false
 var landing_speed := 40.0
 var lamp_angle := 0.0
@@ -495,7 +498,7 @@ func count_items(kind: String) -> int:
 	return n
 
 
-## Puts a fuel can or ammo crate into the tank/magazine. Returns false if it's already full.
+## Puts a fuel can, ammo crate or repair kit into the tank/magazine/repair station. Returns false if it's already full.
 func refill(kind: String) -> bool:
 	if kind == "fuel":
 		if fuel >= TANK - 1.0:
@@ -506,6 +509,11 @@ func refill(kind: String) -> bool:
 		if ammo >= MAGAZINE:
 			return false
 		ammo = mini(MAGAZINE, ammo + CRATE_AMMO)
+		return true
+	if kind == "kit":
+		if patches > MAX_PATCHES - KIT_PATCH:
+			return false
+		patches += KIT_PATCH
 		return true
 	return false
 

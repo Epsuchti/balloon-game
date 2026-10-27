@@ -5,13 +5,13 @@ extends Node2D
 
 const STATS := {
 	"bat": {"hp": 2, "speed": 50.0, "radius": 6.0, "damage": 5.0, "gold": 3,
-		"drops": {"ammo": 0.35, "fuel": 0.2, "gold": 0.15}},
+		"drops": {"ammo": 0.35, "fuel": 0.2, "kit": 0.15, "gold": 0.15}},
 	"harpy": {"hp": 3, "speed": 42.0, "radius": 7.0, "damage": 0.0, "gold": 5,
-		"drops": {"ammo": 0.3, "fuel": 0.25, "gold": 0.25}},
+		"drops": {"ammo": 0.3, "fuel": 0.25, "kit": 0.2, "gold": 0.25}},
 	"goblin": {"hp": 3, "speed": 34.0, "radius": 7.0, "damage": 0.0, "gold": 6,
-		"drops": {"ammo": 0.25, "fuel": 0.3, "gold": 0.35}},
+		"drops": {"ammo": 0.25, "fuel": 0.3, "kit": 0.2, "gold": 0.35}},
 	"bomber": {"hp": 2, "speed": 30.0, "radius": 7.0, "damage": 18.0, "gold": 10,
-		"drops": {"ammo": 0.2, "fuel": 0.3, "gold": 0.5}},
+		"drops": {"ammo": 0.2, "fuel": 0.3, "kit": 0.25, "gold": 0.5}},
 }
 const FUSE := 0.7
 const BAT_RAMS := 3     # a bat flies off after ramming this many times

@@ -15,8 +15,8 @@ const ROAM := -1
 
 const COUNT := 8
 const NAMES: Array[String] = [
-	"Burner", "Shrinker", "Propeller", "Shooter turret",
-	"Fishing rod", "Repair kit", "Lamp", "Second propeller",
+	"Burner", "Shrinker", "Right propeller", "Shooter turret",
+	"Fishing rod", "Repair kit", "Lamp", "Left propeller",
 ]
 ## Each station's colour: its floor plate in the basket and its name tag.
 const COLORS: Array[Color] = [
@@ -27,8 +27,8 @@ const COLORS: Array[Color] = [
 ## What a breakdown of each station does until someone holds A on it to fix it.
 const BREAKDOWNS: Array[String] = [
 	"The pilot light went out", "The shrinker rope snagged and pulls the envelope in",
-	"The propeller jammed", "The turret jammed", "The fishing line tangled",
-	"The envelope sprang a leak", "The lamp flickered out", "The second propeller jammed",
+	"The right propeller jammed: no flying right", "The turret jammed", "The fishing line tangled",
+	"The envelope sprang a leak", "The lamp flickered out", "The left propeller jammed: no flying left",
 ]
 
 

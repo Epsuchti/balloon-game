@@ -1,13 +1,16 @@
 class_name Autopilot
 extends RefCounted
-## A three-bot crew that flies a level: the burner holds the tunnel's height, the propeller pushes
-## on, and the shrinker doubles as the runner: it fetches fuel cans from the hold when the tank runs
-## low, fixes stations nobody mans, patches the hull at the repair kit and shoves boarders overboard.
+## A four-bot crew that flies a level: the burner holds the tunnel's height, the propeller pushes
+## on, the fisher hooks the supplies lying on the ground or stuck to the ceiling, and the
+## shrinker doubles as the runner: it fetches fuel cans from the hold when the tank runs
+## low (and repair kits when the repair station runs out), fixes stations nobody mans, patches the hull at the repair kit and shoves boarders overboard.
 ## Used by the tests to prove a level can be finished and landed.
 
 var run: Node
-var slots: Array[PlayerSlot] = []   # burner, shrinker, propeller
+var slots: Array[PlayerSlot] = []   # burner, shrinker, propeller, fisher
+var _tries := {}   # pickup -> casts at it, so one behind a rock isn't tried forever
 var _runner := "man"
+var _fetch := "fuel"   # what the "fuel" job fetches from the hold: fuel or a repair kit
 var _target: Station
 var _tick := 0
 
@@ -31,6 +34,8 @@ func step() -> void:
 		push = clampf(dx / 80.0, -1.0, 1.0) - b.velocity.x / 60.0
 		if absf(dx) < 40.0:
 			target_y = plat.position.y + 80.0  # aim below the platform so it settles down
+	if absf(dx) >= 260.0 and slots.size() > 3:
+		target_y = _fishing_height(c, target_y)
 	var err := c.y - target_y
 	if absf(dx) >= 260.0 and absf(err) > 40.0:
 		push = 0.35  # wait for the burner to catch up before pressing on
@@ -39,6 +44,65 @@ func step() -> void:
 	_man(b, slots[0], Roles.BURNER, Vector2.ZERO, burn)
 	_man(b, slots[2], Roles.PROPELLER, Vector2(clampf(push, -1.0, 1.0), 0), false)
 	_run_shrinker(b, shrink)
+	if slots.size() > 3:
+		_fish(b, slots[3])
+
+
+## Height to fly at so the fisher can reach the next supply ahead the crew is short of that lies too
+## far below or above the way through; target_y (the tunnel's middle) when there is none.
+func _fishing_height(c: Vector2, target_y: float) -> float:
+	for p: Pickup in run.pickups.get_children():
+		if p.hooked or _tries.get(p, 0) >= 2 or not _needs(run.balloon, p.kind):
+			continue
+		var ahead := p.global_position.x - c.x
+		if ahead < -30.0 or ahead > 260.0 or absf(p.global_position.y - target_y) < 170.0:
+			continue
+		return p.global_position.y + (190.0 if p.on_ceiling else -130.0)
+	return target_y
+
+
+## Whether the crew is short enough of this kind of supply to go out of the way for it.
+func _needs(b: Balloon, kind: String) -> bool:
+	match kind:
+		"fuel":
+			return b.fuel + b.count_items("fuel") * Balloon.CAN_FUEL < 70.0
+		"kit":
+			return b.patches + b.count_items("kit") * Balloon.KIT_PATCH < 40.0
+		"ammo":
+			return b.ammo + b.count_items("ammo") * Balloon.CRATE_AMMO < 15
+	return false
+
+
+## The fisher: casts at the nearest pickup in reach, fuel first, then repair kits and ammo.
+func _fish(b: Balloon, slot: PlayerSlot) -> void:
+	var me := b.crew_for(slot)
+	var st: FishingRod = b.stations[Roles.FISHING]
+	if me == null or me.station != st or st.broken or st.state != FishingRod.State.IDLE:
+		_man(b, slot, Roles.FISHING, Vector2.ZERO, false)
+		return
+	var tip := st.tip()
+	var best: Pickup = null
+	var best_score := INF
+	for p: Pickup in run.pickups.get_children():
+		var d := p.global_position.distance_to(tip)
+		if p.hooked or d > FishingRod.LINE_MAX * 0.9 or _tries.get(p, 0) >= 2:
+			continue
+		var want := {"fuel": 400.0, "kit": 200.0, "ammo": 100.0}
+		if b.hull < 60.0 and b.patches + b.count_items("kit") * Balloon.KIT_PATCH < 40.0:
+			want["kit"] = 600.0  # the hull needs kits more than the tank needs fuel
+		var score: float = d - want.get(p.kind, 0.0)
+		if score < best_score:
+			best = p
+			best_score = score
+	if best == null:
+		_input_for(slot, Vector2.ZERO, false, false)
+		return
+	var aim := (best.global_position - tip).normalized()
+	var cast := _tick % 2 == 0
+	if cast:
+		_tries[best] = _tries.get(best, 0) + 1
+	var buttons: Array[bool] = [cast, false, false, false, false, false, false, false]
+	Players.bot_inputs[slot.device] = {"move": Vector2.ZERO, "aim": aim, "buttons": buttons}
 
 
 ## A bot that stays at its station: fixes it when it breaks and takes it back after a boarder leaves.
@@ -91,12 +155,12 @@ func _run_shrinker(b: Balloon, shrink: bool) -> void:
 				_input_for(slot, Vector2.ZERO, shrink, false)
 		"fuel":
 			if me.carrying != null:
-				if me.carrying.kind == "fuel":
+				if me.carrying.kind == _fetch:
 					_runner = "to_burner"
 				else:
 					_input_for(slot, Vector2.ZERO, false, pulse)  # wrong item, drop it
 				return
-			var item := _nearest_fuel(b, me)
+			var item := _nearest_item(b, me, _fetch)
 			if item == null:
 				_back(b)
 				return
@@ -106,7 +170,8 @@ func _run_shrinker(b: Balloon, shrink: bool) -> void:
 			if me.carrying == null:
 				_back(b)
 				return
-			if _walk(slot, me, b.stations[Roles.BURNER].position):
+			var to: Station = b.stations[Roles.BURNER if _fetch == "fuel" else Roles.REPAIR]
+			if _walk(slot, me, to.position):
 				_press(slot, Vector2.ZERO, PlayerSlot.Btn.Y, pulse)
 		"shove":
 			var bd := _boarder(b)
@@ -137,7 +202,7 @@ func _run_shrinker(b: Balloon, shrink: bool) -> void:
 				_press(slot, Vector2.ZERO, PlayerSlot.Btn.X, pulse)
 		"fix":
 			if me.station == _target:
-				var done := not _target.broken and (_target.role != Roles.REPAIR or b.hull >= 90.0 or _urgent(b))
+				var done := not _target.broken and (_target.role != Roles.REPAIR or b.hull >= 90.0 or b.patches <= 0.0 or _urgent(b))
 				if done:
 					_input_for(slot, Vector2.ZERO, false, true)
 					_back(b)
@@ -161,6 +226,10 @@ func _next_job(b: Balloon) -> String:
 	if _boarder(b) != null:
 		return "shove"
 	if b.fuel < 30.0 and b.count_items("fuel") > 0:
+		_fetch = "fuel"
+		return "fuel"
+	if b.hull < 70.0 and b.patches < Balloon.KIT_PATCH and b.count_items("kit") > 0:
+		_fetch = "kit"
 		return "fuel"
 	for role in [Roles.SHRINKER, Roles.REPAIR, Roles.PROPELLER2, Roles.LAMP, Roles.TURRET, Roles.FISHING]:
 		var st: Station = b.stations[role]
@@ -169,7 +238,7 @@ func _next_job(b: Balloon) -> String:
 			return "fix"
 	if b.ammo > 0 and _nearest_enemy(b) != null:
 		return "turret"
-	if b.hull < 50.0:
+	if b.hull < 50.0 and b.patches > 0.0:
 		_target = b.stations[Roles.REPAIR]
 		return "fix"
 	return ""
@@ -227,10 +296,10 @@ func _boarder(b: Balloon) -> Boarder:
 	return null if b.boarders.is_empty() else b.boarders[0]
 
 
-func _nearest_fuel(b: Balloon, me: CrewMember) -> SupplyItem:
+func _nearest_item(b: Balloon, me: CrewMember, kind: String) -> SupplyItem:
 	var best: SupplyItem = null
 	for it in b.items:
-		if it.kind == "fuel" and it.carrier == null:
+		if it.kind == kind and it.carrier == null:
 			if best == null or absf(it.position.x - me.position.x) < absf(best.position.x - me.position.x):
 				best = it
 	return best

@@ -22,14 +22,14 @@ Art, sound effects and the 8-bit soundtrack are generated in code (`scripts/auto
 
 Players run and jump (**A**) around inside the basket. Each station has a coloured plate on the
 floor; stand on it and press **X** to take the station, **B** to leave it free for someone else.
-Fuel cans and ammo crates sit in the hold at the bottom of the basket; pick one up with **Y**, carry it
-to the burner (fuel) or turret (ammo) and press **Y** there to refill it (Y anywhere else drops it). When fuel or ammo runs low, a yellow arrow blinks over the supplies in the hold and another
+Fuel cans, ammo crates and repair kits sit in the hold at the bottom of the basket; pick one up with **Y**, carry it
+to the burner (fuel), turret (ammo) or repair kit station (kit) and press **Y** there to refill it (Y anywhere else drops it). When fuel or ammo runs low, a yellow arrow blinks over the supplies in the hold and another
 points at the station while someone carries a matching item. Mind the open edges:
 jump over a rail and you parachute down until the fisher reels you in or you respawn (and the crew
 loses a little gold).
 
-All eight stations (burner, shrinker, propeller, shooter turret, fishing rod, repair kit, lamp and a
-second propeller) are on board at every crew size. Nobody can man everything, so the crew decides who
+All eight stations (burner, shrinker, right and left propellers, shooter turret, fishing rod, repair kit
+and lamp) are on board at every crew size. Nobody can man everything, so the crew decides who
 runs where. What changes with the crew size is the pressure, so two players are as busy as eight:
 
 | | 2 players | 4 players | 8 players |
@@ -42,7 +42,12 @@ runs where. What changes with the crew size is the pressure, so two players are 
 - **Breakdowns:** smoke and a red **!** mean a station broke. It does nothing until someone takes it
   and holds **A** for about 1.6 s. A broken burner gives no heat, a snagged shrinker rope pulls the
   envelope in, a broken repair kit means the envelope sprang a leak and the hull wears down.
-- **The hull never heals by itself.** Patch it at the repair kit. Collisions hurt (twice as much as
+- **Each propeller pulls one way:** the right one flies you right, the left one left. When one breaks
+  down you can't fly that way until it's fixed.
+- **The hull never heals by itself.** Patch it at the repair kit station, which uses up repair kits:
+  it starts stocked with one, holds two, and each patches 30 hull. There's one spare in the hold; more
+  float in the supply caches, drop from enemies, or lie on the ground below the way through, where
+  the fishing rod can hook them. Collisions hurt (twice as much as
   before), bats ram up to three times, bombers explode, harpies peck once they board.
 - **Fuel is scarce:** one spare can at the start, each can holds a third of the tank, and only a
   few more turn up in the level and from enemies.
@@ -75,8 +80,8 @@ An unplugged controller's character waves for 10 seconds; plug it back in to kee
 | Ready / pause | Start | Tab | Enter |
 
 At a station: **Burner** hold A (or up) to heat, **Shrinker** hold A (or down) to pull the envelope in
-and drop faster, **Propeller** push left/right, **Turret** aim and hold A, **Fishing rod** aim and press A
-to cast, **Repair kit** hold A, **Lamp** aim.
+and drop faster, **Right / left propeller** push that way (or hold A), **Turret** aim and hold A, **Fishing rod** aim and press A
+to cast, **Repair kit** hold A (uses kits), **Lamp** aim.
 
 ### Music and fullscreen
 
