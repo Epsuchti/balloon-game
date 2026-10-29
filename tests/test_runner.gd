@@ -20,6 +20,7 @@ func _ready() -> void:
 	await _test_buttons()
 	await _test_fans_and_kits()
 	await _test_screens()
+	await _test_controller_exit()
 	await _test_autopilot(Difficulty.EASY, 777)
 	await _test_autopilot(Difficulty.NORMAL, 777)
 	print("\n%d checks, %d failed" % [_checks, _failures])
@@ -435,6 +436,52 @@ func _test_screens() -> void:
 		await get_tree().physics_frame
 	Players.clear()
 	Game.goto("menu")
+	await get_tree().process_frame
+	Game._screen.queue_free()
+	await get_tree().process_frame
+
+
+## A controller alone can get from the crew setup back to the title screen (and its Quit).
+func _test_controller_exit() -> void:
+	Game.register_root(self)
+	var none: Array[bool] = [false, false, false, false, false, false, false, false]
+	var b_btn: Array[bool] = [false, true, false, false, false, false, false, false]
+	var start: Array[bool] = [false, false, false, false, false, false, true, false]
+	Game.use_random_level()
+	Game.goto("setup")
+	await get_tree().physics_frame
+	var a := Players.add_bot()
+	for i in 20:
+		await get_tree().physics_frame
+	Players.bot_inputs[a.device] = {"buttons": start}
+	for i in 60:
+		await get_tree().physics_frame
+	check(_screen_is("controls_screen.gd"), "a ready crew of one shows the controls")
+	Players.bot_inputs[a.device] = {"buttons": b_btn}
+	for i in 80:
+		await get_tree().physics_frame
+	check(_screen_is("setup_screen.gd"), "holding B on the controls screen goes back to the setup")
+	for i in 40:
+		await get_tree().physics_frame
+	check(_screen_is("setup_screen.gd") and Players.players.size() == 1, "the same B hold doesn't also leave the setup")
+	Players.bot_inputs[a.device] = {"buttons": none}
+	for i in 5:
+		await get_tree().physics_frame
+	Players.bot_inputs[a.device] = {"buttons": b_btn}
+	for i in 80:
+		await get_tree().physics_frame
+	check(_screen_is("main_menu.gd"), "the last player holding B in the setup goes back to the title screen")
+	check(Players.players.is_empty(), "leaving the setup empties the crew")
+	var cancel := InputEventAction.new()
+	cancel.action = "ui_cancel"
+	cancel.pressed = true
+	Input.parse_input_event(cancel)
+	for i in 3:
+		await get_tree().process_frame
+	var focus := get_viewport().gui_get_focus_owner()
+	check(focus is Button and (focus as Button).text == "Quit", "B on the title screen jumps to Quit")
+	Players.bot_inputs[a.device] = {"buttons": none}
+	Players.clear()
 	await get_tree().process_frame
 	Game._screen.queue_free()
 	await get_tree().process_frame

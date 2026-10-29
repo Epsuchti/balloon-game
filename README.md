@@ -78,6 +78,8 @@ An unplugged controller's character waves for 10 seconds; plug it back in to kee
 | Setup: random stations | Y | R | `;` |
 | Setup: change difficulty | Back | `` ` `` | Backspace |
 | Ready / pause | Start | Tab | Enter |
+| Back out of setup / controls (last one out returns to the title screen) | Hold B | Esc | Esc |
+| Title screen: jump to Quit | B | Esc | Esc |
 
 At a station: **Burner** hold A (or up) to heat, **Shrinker** hold A (or down) to pull the envelope in
 and drop faster, **Right / left propeller** push that way (or hold A), **Turret** aim and hold A, **Fishing rod** aim and press A

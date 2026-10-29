@@ -82,7 +82,7 @@ func _ready() -> void:
 	add_child(_status)
 	var help := Label.new()
 	help.text = "Any button: join   LB/RB: pick station   A: pop balloons   Y: random stations   " \
-		+ "Back: difficulty   hold B: leave   Start: ready (hold to start now)   Esc: menu"
+		+ "Back: difficulty   hold B: leave (last one out: menu)   Start: ready (hold to start now)   Esc: menu"
 	help.add_theme_font_size_override("font_size", 7)
 	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
@@ -184,8 +184,12 @@ func _physics_process(dt: float) -> void:
 			Sfx.play("tick", 1.5 if slot.ready else 0.9)
 		if slot.held_for(PlayerSlot.Btn.START) > HOLD_TO_START:
 			holding_start = true
-		if slot.held_for(PlayerSlot.Btn.B) > HOLD_TO_LEAVE:
+		# Only a hold that started here counts, so holding B on the controls screen doesn't carry over.
+		if slot.held_for(PlayerSlot.Btn.B) > HOLD_TO_LEAVE and slot.held_for(PlayerSlot.Btn.B) < _age:
 			Players.remove(slot)
+			if Players.players.is_empty():
+				Game.goto("menu")  # the last one out goes back to the title screen (and its Quit)
+				return
 			continue
 		_overlay.steer(slot, dt)
 	if holding_start:

@@ -1,6 +1,9 @@
 extends Control
 ## Shown after everyone is ready: how to move, what each station does and how to refill fuel and
 ## ammo. Every player presses A to confirm they've got it (B to take it back); then the flight starts.
+## Holding B before confirming goes back to the crew setup, like Esc.
+
+const HOLD_TO_GO_BACK := 1.0
 
 const STATIONS := [
 	"Hold A (or up) to heat and climb. Uses fuel.",
@@ -140,6 +143,9 @@ func _physics_process(dt: float) -> void:
 		elif slot.just_pressed(PlayerSlot.Btn.B) and _confirmed.has(slot.id):
 			_confirmed.erase(slot.id)
 			Sfx.play("leave")
+		elif slot.held_for(PlayerSlot.Btn.B) > HOLD_TO_GO_BACK and not _confirmed.has(slot.id):
+			Game.goto("setup")
+			return
 	_refresh_chips()
 	var waiting := 0
 	for slot in Players.players:
@@ -153,7 +159,7 @@ func _physics_process(dt: float) -> void:
 		Sfx.play("land")
 		get_tree().create_timer(0.6).timeout.connect(func() -> void: Game.goto("run"))
 	else:
-		_status.text = "Each player: press A when you've got it (%d to go). Esc: back" % waiting
+		_status.text = "Each player: press A when you've got it (%d to go). Hold B or Esc: back" % waiting
 
 
 func _refresh_chips() -> void:

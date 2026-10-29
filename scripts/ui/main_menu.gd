@@ -4,6 +4,7 @@ extends Control
 var _code_row: HBoxContainer
 var _code_edit: LineEdit
 var _error: Label
+var _quit: Button
 
 
 func _ready() -> void:
@@ -51,12 +52,12 @@ func _ready() -> void:
 	label_music.call(Music.muted)
 	Music.muted_changed.connect(label_music)
 	tree_exiting.connect(func() -> void: Music.muted_changed.disconnect(label_music))
-	_button(box, "Quit", func() -> void: get_tree().quit())
+	_quit = _button(box, "Quit", func() -> void: get_tree().quit())
 	var hint := HBoxContainer.new()
 	hint.add_theme_constant_override("separation", 3)
 	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	hint.position = Vector2(8, -20)
-	for part: Array in [["A", "select"], ["stick", "move"], ["key:M", "music"], ["key:F11", "fullscreen"]]:
+	for part: Array in [["A", "select"], ["B", "quit"], ["stick", "move"], ["key:M", "music"], ["key:F11", "fullscreen"]]:
 		hint.add_child(UiKit.Glyph.new(part[0]))
 		var l := UiKit.label(part[1] + "   ", 8, UiKit.CREAM)
 		l.add_theme_constant_override("outline_size", 3)
@@ -73,6 +74,13 @@ func _button(box: Container, text: String, cb: Callable) -> Button:
 	b.pressed.connect(cb)
 	box.add_child(b)
 	return b
+
+
+## B (or Esc) jumps to Quit; A then leaves the game.
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") and not _code_row.visible:
+		_quit.grab_focus()
+		get_viewport().set_input_as_handled()
 
 
 func _show_code() -> void:
